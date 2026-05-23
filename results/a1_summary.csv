@@ -1,0 +1,12 @@
+metric,value
+N_gcc,7624
+E_gcc,27806
+<k>,7.2943
+<k2>,185.437
+kmax,216
+kmin,1
+C_delta,0.1786
+<c>,0.2194
+assortativity_r,0.0171
+<l>,5.1754
+diameter,13
