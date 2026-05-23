@@ -85,19 +85,28 @@ k_vals  = np.array(sorted(cnt))
 pk_vals = np.array([cnt[k] for k in k_vals]) / N
 ccdf    = np.cumsum(pk_vals[::-1])[::-1]
 
-fig, axes = plt.subplots(1, 3, figsize=(14, 4))
-
-axes[0].bar(k_vals, pk_vals, width=0.8, color="steelblue", alpha=0.8)
-axes[0].set(xlabel=r"$k$", ylabel=r"$P(k)$", title="Degree distribution (linear)")
-
-axes[1].loglog(k_vals, pk_vals, "o", ms=4, color="steelblue")
-axes[1].set(xlabel=r"$k$", ylabel=r"$P(k)$", title="Degree distribution (log-log)")
-
-axes[2].loglog(k_vals, ccdf, color="steelblue")
-axes[2].set(xlabel=r"$k$", ylabel=r"$P(K \geq k)$", title="CCDF (log-log)")
-
+# linear
+fig, ax = plt.subplots(figsize=(5, 4))
+ax.bar(k_vals, pk_vals, width=0.8, color="steelblue", alpha=0.8)
+ax.set(xlabel=r"$k$", ylabel=r"$P(k)$", title="Degree distribution (linear)")
 plt.tight_layout()
-plt.savefig(os.path.join(RESULTS, "a1_degree_dist.pdf"))
+plt.savefig(os.path.join(RESULTS, "a1_degree_dist_linear.pdf"))
+plt.show()
+
+# log-log
+fig, ax = plt.subplots(figsize=(5, 4))
+ax.loglog(k_vals, pk_vals, "o", ms=4, color="steelblue")
+ax.set(xlabel=r"$k$", ylabel=r"$P(k)$", title="Degree distribution (log-log)")
+plt.tight_layout()
+plt.savefig(os.path.join(RESULTS, "a1_degree_dist_loglog.pdf"))
+plt.show()
+
+# CCDF
+fig, ax = plt.subplots(figsize=(5, 4))
+ax.loglog(k_vals, ccdf, color="steelblue")
+ax.set(xlabel=r"$k$", ylabel=r"$P(K \geq k)$", title="CCDF (log-log)")
+plt.tight_layout()
+plt.savefig(os.path.join(RESULTS, "a1_degree_dist_ccdf.pdf"))
 plt.show()
 
 # ── 5. Average nearest-neighbour degree k_nn(k) ──────────────────────────────
