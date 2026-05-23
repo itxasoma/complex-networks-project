@@ -62,6 +62,40 @@ N = G.number_of_nodes()
 E = G.number_of_edges()
 print(f"\nGCC  N={N}  E={E}")
 
+# ── 2b. Pointer-based adjacency structure (Assignment 1) ─────────────────────
+# D[i]  : degree of node i                              (length N)
+# P1[i] : first pointer  – start of node i's block in V (frozen)
+# P2[i] : second pointer – current write-head           (advances in pass 2)
+# V     : flat neighbour list                           (length 2E)
+
+gcc_edge_list = list(G.edges())
+
+# Pass 1: count degrees
+D = np.zeros(N, dtype=np.int64)
+for u, v in gcc_edge_list:
+    D[u] += 1
+    D[v] += 1
+
+# Initialise pointers (P1 = exclusive prefix sum of D; P2 = copy of P1)
+P1 = np.zeros(N, dtype=np.int64)
+for i in range(1, N):
+    P1[i] = P1[i-1] + D[i-1]
+P2 = P1.copy()
+
+# Pass 2: fill V
+V = np.zeros(2 * E, dtype=np.int64)
+for u, v in gcc_edge_list:
+    V[P2[u]] = v;  P2[u] += 1
+    V[P2[v]] = u;  P2[v] += 1
+
+assert np.all(P2 == P1 + D), "Pointer check failed"
+assert int(D.sum()) == 2 * E, "Degree sum ≠ 2E"
+
+# Print degree list in required format "node  degree"
+#print(f"\n{'node':>8}  {'degree':>8}")
+#for i in range(N):
+#    print(f"{i:>8}  {int(D[i]):>8}")
+
 # ── 3. Basic metrics ──────────────────────────────────────────────────────────
 degrees  = np.array([d for _, d in G.degree()])
 k_mean   = degrees.mean()
