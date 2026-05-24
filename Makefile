@@ -1,39 +1,29 @@
-# Makefile — Complex Networks structural analysis (Python)
+# Makefile — Complex Networks analysis pipeline
+#
 # Usage:
-#   make              -> full pipeline (download, clean, stats, plots)
-#   make download     -> fetch raw edge list into data/
-#   make clean_net    -> remove self-loops/multi-edges, extract GCC
-#   make stats        -> compute degree statistics
-#   make plots        -> generate degree-distribution figures
-#   make clean        -> remove results/ and data/gcc* files
-#   make distclean    -> remove ALL generated files including raw data
+#   make        -> run all assignments (a1 → a2 → a3)
+#   make a1     -> structural metrics (no plots)
+#   make a2     -> degree distribution, k_nn(k), c(k) + all plots
+#   make a3     -> Louvain community detection + community plots
+#   make clean  -> remove results/
 
-PYTHON  = python3
-SRCDIR  = src
-DATADIR = data
-RESDIR  = results
+PYTHON = python3
+SRC    = src
+RES    = results
 
-.PHONY: all download clean_net stats plots clean distclean
+.PHONY: all a1 a2 a3 clean
 
-all: plots
+all: a1 a2 a3
 
-download:
-	mkdir -p $(DATADIR)
-	$(PYTHON) $(SRCDIR)/load.py
+a1:
+	mkdir -p $(RES)
+	$(PYTHON) $(SRC)/assignment1.py
 
-clean_net: download
-	$(PYTHON) $(SRCDIR)/gcc.py
+a2: a1
+	$(PYTHON) $(SRC)/assignment2.py
 
-stats: clean_net
-	mkdir -p $(RESDIR)
-	$(PYTHON) $(SRCDIR)/stats.py
-
-plots: stats
-	$(PYTHON) $(SRCDIR)/plots.py
+a3: a1
+	$(PYTHON) $(SRC)/assignment3.py
 
 clean:
-	rm -rf $(RESDIR)
-	rm -f $(DATADIR)/gcc_edgelist.txt $(DATADIR)/label_to_idx.json $(DATADIR)/degree_sequence.npy
-
-distclean: clean
-	rm -rf $(DATADIR)
+	rm -rf $(RES)
