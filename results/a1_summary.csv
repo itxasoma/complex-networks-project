@@ -5,8 +5,9 @@ E_gcc,27806
 <k2>,185.437
 kmax,216
 kmin,1
-C_delta,0.1786
-<c>,0.2194
+<k2>/<k>,25.4221
+<c>,0.219418
+triangles,40433
 assortativity_r,0.0171
 <l>,5.1754
 diameter,13
