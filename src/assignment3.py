@@ -7,14 +7,18 @@ Produces community plots and a summary CSV.
 import csv
 import os
 import random
+from collections import Counter
 
+import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+import matplotlib.cm as cm
+import matplotlib.colors as mcolors
 import networkx as nx
 import numpy as np
 
 try:
-    import community as community_louvain          # python-louvain
+    import community as community_louvain
 except ImportError:
     raise ImportError("Install with: pip install python-louvain")
 
@@ -71,18 +75,13 @@ print(f"GCC  N={N}  E={E}")
 
 
 # ── 3. Louvain community detection ───────────────────────────────────────────
-# Resolution gamma=1.0 (default). Set random_state for reproducibility.
-partition = community_louvain.best_partition(G, resolution=1.0, random_state=42)
+partition  = community_louvain.best_partition(G, resolution=1.0, random_state=42)
+n_comm     = len(set(partition.values()))
+modularity = community_louvain.modularity(partition, G)
 
-# partition: dict  node -> community_id
-n_communities = len(set(partition.values()))
-modularity    = community_louvain.modularity(partition, G)
-
-print(f"\nNumber of communities : {n_communities}")
+print(f"\nNumber of communities : {n_comm}")
 print(f"Modularity Q          : {modularity:.4f}")
 
-# Community sizes
-from collections import Counter
 comm_sizes = Counter(partition.values())
 sizes      = np.array(sorted(comm_sizes.values(), reverse=True))
 
@@ -92,26 +91,51 @@ print(f"Mean community size   : {sizes.mean():.1f}")
 print(f"Median community size : {np.median(sizes):.1f}")
 
 
+# ── Shared colour map: plasma mapped on log(size) ────────────────────────────
+# Mapping by log(size) instead of linear rank gives much better colour spread
+# when the size distribution is heavy-tailed (many small, few large communities).
+cmap_base  = matplotlib.colormaps["plasma_r"]
+
+all_sizes  = np.array([comm_sizes[cid] for cid in comm_sizes])
+log_sizes  = np.log(all_sizes)
+log_min, log_max = log_sizes.min(), log_sizes.max()
+
+def comm_color(cid):
+    """Plasma colour mapped on log(size): large=yellow, small=purple."""
+    s = comm_sizes[cid]
+    t = (np.log(s) - log_min) / max(log_max - log_min, 1e-9)
+    return cmap_base(0.05 + 0.90 * t)
+
+
 # ── 4. Community-size distribution ───────────────────────────────────────────
-fig, ax = plt.subplots(figsize=(6, 4))
-ax.bar(range(1, len(sizes) + 1), sizes, color="steelblue", alpha=0.8)
+ranked_ids = [cid for cid, _ in comm_sizes.most_common()]
+bar_colors = [comm_color(cid) for cid in ranked_ids]
+
+fig, ax = plt.subplots(figsize=(5, 4))
+ax.bar(range(1, n_comm + 1), sizes, color=bar_colors, alpha=0.9)
 ax.set(xlabel="Community rank (by size)", ylabel="Number of nodes",
-       title=f"Community sizes  (Q = {modularity:.3f},  {n_communities} communities)")
-ax.axhline(sizes.mean(), color="tomato", lw=1.5, ls="--",
+       title=f"Community sizes  (Q = {modularity:.3f},  {n_comm} communities)")
+ax.axhline(sizes.mean(), color="black", lw=1.2, ls="--",
            label=rf"mean = {sizes.mean():.1f}")
 ax.legend(fontsize=9)
+
+sm = cm.ScalarMappable(cmap=cmap_base,
+                       norm=mcolors.Normalize(vmin=log_min, vmax=log_max))
+sm.set_array([])
+cbar = plt.colorbar(sm, ax=ax, pad=0.02)
+cbar.set_label("log(community size)", fontsize=8)
+cbar.ax.invert_yaxis()
+
 plt.tight_layout()
 plt.savefig(os.path.join(RESULTS, "a3_community_sizes.pdf"))
 plt.show()
 
 
-# ── 5. Network visualisation (spring layout, coloured by community) ───────────
-# For large N we sample a subgraph to keep the plot readable.
+# ── 5. Network visualisation ──────────────────────────────────────────────────
 VIZ_MAX = 2000
 random.seed(42)
 
 if N > VIZ_MAX:
-    # Sample nodes while keeping community proportions
     sampled = []
     for cid, cnt in comm_sizes.items():
         members = [n for n, c in partition.items() if c == cid]
@@ -121,36 +145,36 @@ if N > VIZ_MAX:
     H       = G.subgraph(sampled).copy()
     subtitle = f"(sampled {len(H)} / {N} nodes)"
 else:
-    H       = G
-    subtitle = f"({N} nodes)"
+    H        = G
+    subtitle  = f"({N} nodes)"
 
 sub_partition = {n: partition[n] for n in H.nodes()}
-
-# Assign a colour to each community
-cmap        = plt.get_cmap("tab20")
-comm_ids    = sorted(set(sub_partition.values()))
-color_map   = {cid: cmap(i % 20) for i, cid in enumerate(comm_ids)}
-node_colors = [color_map[sub_partition[n]] for n in H.nodes()]
+node_colors   = [comm_color(sub_partition[n]) for n in H.nodes()]
 
 print(f"\nComputing spring layout for {len(H)} nodes …")
-pos = nx.spring_layout(H, seed=42, k=1/np.sqrt(len(H)))
+pos = nx.spring_layout(H, seed=42, k=1 / np.sqrt(len(H)))
 
-fig, ax = plt.subplots(figsize=(10, 10))
-nx.draw_networkx_edges(H, pos, ax=ax, alpha=0.08, width=0.4, edge_color="gray")
+fig, ax = plt.subplots(figsize=(5, 4))
+
+# Edges: solid, visible but not dominant
+nx.draw_networkx_edges(H, pos, ax=ax, alpha=0.25, width=0.4, edge_color="#000000")
 nx.draw_networkx_nodes(H, pos, ax=ax, node_color=node_colors,
-                       node_size=12, linewidths=0)
-ax.set_title(f"Community structure — Louvain  {subtitle}\n"
-             f"Q = {modularity:.4f},  {n_communities} communities", fontsize=11)
+                       node_size=6, linewidths=0)
+
+ax.set_title(
+    f"Louvain communities  {subtitle}\n"
+    f"Q = {modularity:.4f},  {n_comm} communities",
+    fontsize=8
+)
 ax.axis("off")
 
-# Legend: only the largest communities to avoid clutter
-top_n   = min(12, n_communities)
-top_ids = [cid for cid, _ in comm_sizes.most_common(top_n)]
-patches = [mpatches.Patch(color=color_map[cid],
-                          label=f"C{cid}  ({comm_sizes[cid]} nodes)")
-           for cid in top_ids]
-ax.legend(handles=patches, loc="lower left", fontsize=7,
-          title="Top communities", title_fontsize=8, framealpha=0.7)
+sm2 = cm.ScalarMappable(cmap=cmap_base,
+                        norm=mcolors.Normalize(vmin=log_min, vmax=log_max))
+sm2.set_array([])
+cbar2 = plt.colorbar(sm2, ax=ax, shrink=0.6, pad=0.01)
+cbar2.set_label("log(community size)", fontsize=7)
+cbar2.ax.tick_params(labelsize=6)
+cbar2.ax.invert_yaxis()
 
 plt.tight_layout()
 plt.savefig(os.path.join(RESULTS, "a3_network_communities.pdf"), dpi=150)
@@ -175,25 +199,24 @@ plt.savefig(os.path.join(RESULTS, "a3_edge_pie.pdf"))
 plt.show()
 
 
-# ── 7. Degree distribution per community (top 5 communities) ─────────────────
+# ── 7. Degree distribution: top 5 communities (overlaid, default colors) ─────
 top5_ids = [cid for cid, _ in comm_sizes.most_common(5)]
-fig, axes = plt.subplots(1, 5, figsize=(14, 3), sharey=False)
 
-for ax, cid in zip(axes, top5_ids):
-    members  = [n for n, c in partition.items() if c == cid]
-    degs     = [G.degree(n) for n in members]
-    cnt      = Counter(degs)
-    ks       = sorted(cnt)
-    pk       = [cnt[k] / len(members) for k in ks]
-    ax.bar(ks, pk, color=color_map[cid], alpha=0.85, width=0.8)
-    ax.set_title(f"C{cid}\n({len(members)} nodes)", fontsize=8)
-    ax.set_xlabel(r"$k$", fontsize=8)
-    ax.set_ylabel(r"$P(k)$", fontsize=8)
-    ax.tick_params(labelsize=7)
+fig, ax = plt.subplots(figsize=(5, 4))
+for cid in top5_ids:
+    members = [n for n, c in partition.items() if c == cid]
+    degs    = [G.degree(n) for n in members]
+    cnt     = Counter(degs)
+    ks      = np.array(sorted(cnt))
+    pk      = np.array([cnt[k] / len(members) for k in ks])
+    ax.loglog(ks, pk, "o", ms=3.5,
+              label=f"C{cid} ({len(members)} nodes)")
 
-plt.suptitle("Degree distribution — top 5 communities", fontsize=10, y=1.02)
+ax.set(xlabel=r"$k$", ylabel=r"$P(k)$",
+       title="Degree distribution: top 5 communities")
+ax.legend(fontsize=7, loc="lower left")
 plt.tight_layout()
-plt.savefig(os.path.join(RESULTS, "a3_comm_degree_dists.pdf"), bbox_inches="tight")
+plt.savefig(os.path.join(RESULTS, "a3_comm_degree_dists.pdf"))
 plt.show()
 
 
@@ -204,7 +227,7 @@ with open(os.path.join(RESULTS, "a3_summary.csv"), "w", newline="") as f:
     for label, val in [
         ("N_gcc",            N),
         ("E_gcc",            E),
-        ("n_communities",    n_communities),
+        ("n_communities",    n_comm),
         ("modularity_Q",     round(modularity, 4)),
         ("largest_comm",     int(sizes[0])),
         ("smallest_comm",    int(sizes[-1])),
