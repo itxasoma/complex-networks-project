@@ -1,0 +1,11 @@
+metric,value
+N_gcc,7624
+E_gcc,27806
+n_communities,28
+modularity_Q,0.8148
+largest_comm,1103
+smallest_comm,4
+mean_comm_size,272.3
+intra_edges,25367
+inter_edges,2439
+intra_frac,0.9123
