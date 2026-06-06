@@ -1,6 +1,6 @@
 # Complex Networks — Structural Analysis
 
-Python implementation of structural network analysis for the *Complex Systems* course (MASM, 2025–2026).  
+Python implementation of structural network analysis for the *Complex Systems* course (2025–2026).  
 The pipeline loads a real-world network, preprocesses it into an unweighted undirected simple graph, extracts the Giant Connected Component (GCC), and runs three analysis assignments.
 
 Network used: **LastFM Asia** social network, sourced from [SNAP / Benedek Rozemberczki](https://snap.stanford.edu/data/feather-lastfm-social.html).  
@@ -17,9 +17,8 @@ complex-networks-project/
 │   │                    # P(k), k_nn(k), c(k), assortativity, path length
 │   ├── assignment2.py   # Manual P(k), CCDF, k_nn(k), c(k) + all plots
 │   ├── assignment3.py   # Louvain community detection + community plots
-│   ├── __init__.py
 │   └── mplstyle/
-│       └── science.mplstyle   # Shared Matplotlib style
+│       └── science.mplstyle   # Matplotlib style
 ├── lastfm_asia/
 │   └── lastfm_asia_edges.csv  # Raw edge list (node_1, node_2)
 ├── results/             # Output figures (PDF) and CSV summaries (generated)
