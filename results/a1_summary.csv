@@ -3,11 +3,10 @@ N_gcc,7624
 E_gcc,27806
 <k>,7.2943
 <k2>,185.437
-kmax,216
 kmin,1
-<k2>/<k>,25.4221
-<c>,0.219418
-triangles,40433
+kmax,216
+density,0.000957
+C_delta,0.178623
 assortativity_r,0.0171
 <l>,5.1754
 diameter,13

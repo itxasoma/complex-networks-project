@@ -30,7 +30,7 @@ a4: a1
 	$(PYTHON) $(SRC)/assignment4.py
 
 a4-plots: a4
-	$(PYTHON) $(SRC)/assignment4_plots.py
+	$(PYTHON) $(SRC)/assignment4-plots.py
 
 clean:
 	rm -rf $(RES)

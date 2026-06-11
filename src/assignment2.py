@@ -1,273 +1,146 @@
 """
-assignment2.py: Degree distribution, ANND and clustering spectrum (GCC)
-Reuses the pointer-based structure from assignment1.py and produces all plots,
-including the improved versions of the assignment1 figures (a1_*.pdf).
+assignment2.py: Degree distribution, ANND and clustering spectrum.
+
+Computes P(k), Pc(k), k_nn(k), c(k), and produces the required plots.
+Also creates an optional GCC visualization for the report.
 """
 
-import csv
+
 import os
 
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 
+from network_utils import analyze_graph, load_gcc_from_csv, save_csv
 
-# ── Paths ─────────────────────────────────────────────────────────────────────
+
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-REPO_ROOT  = os.path.abspath(os.path.join(SCRIPT_DIR, ".."))
-RESULTS    = os.path.join(REPO_ROOT, "results")
+REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, ".."))
+RESULTS = os.path.join(REPO_ROOT, "results")
+EDGE_FILE = os.path.join(REPO_ROOT, "lastfm_asia", "lastfm_asia_edges.csv")
 os.makedirs(RESULTS, exist_ok=True)
 
 plt.style.use(os.path.join(SCRIPT_DIR, "mplstyle", "science.mplstyle"))
 
 
-# ── 1. Load & clean ───────────────────────────────────────────────────────────
-def load_edgelist(path):
-    edges, nodes_raw = set(), set()
-    with open(path) as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            parts = line.split(",")
-            if len(parts) < 2:
-                continue
-            try:
-                u, v = int(parts[0]), int(parts[1])
-            except ValueError:
-                continue
-            if u == v:
-                continue
-            edges.add((min(u, v), max(u, v)))
-            nodes_raw.update([u, v])
-    return edges, nodes_raw
+def plot_gcc_network(G, outpath):
+    deg = dict(G.degree())
+    nodes = list(G.nodes())
+    node_sizes = [8 + 2.0 * np.sqrt(deg[n]) for n in nodes]
+    node_colors = [deg[n] for n in nodes]
+
+    pos = nx.spring_layout(G, seed=42, k=0.15)
+
+    fig, ax = plt.subplots(figsize=(6, 5))
+    nx.draw_networkx_edges(G, pos, ax=ax, width=0.15, alpha=0.12, edge_color="gray")
+    nx.draw_networkx_nodes(
+        G,
+        pos,
+        ax=ax,
+        node_size=node_sizes,
+        node_color=node_colors,
+        cmap="viridis",
+        linewidths=0,
+    )
+    ax.set_title("Giant connected component")
+    ax.axis("off")
+    plt.tight_layout()
+    plt.savefig(outpath, dpi=200)
+    plt.close()
 
 
-edge_file = os.path.join(REPO_ROOT, "lastfm_asia", "lastfm_asia_edges.csv")
-raw_edges, raw_nodes = load_edgelist(edge_file)
+G = load_gcc_from_csv(EDGE_FILE)
+res = analyze_graph(G)
 
-G_full = nx.Graph()
-G_full.add_edges_from(raw_edges)
+ks_pk = np.array([k for k in range(1, res["k_max"] + 1) if res["nk"][k] > 0])
+ks_ck = np.array([k for k in range(2, res["k_max"] + 1) if res["nk"][k] > 0 and res["ck"][k] > 0])
 
-isolates = list(nx.isolates(G_full))
-print(f"Nodes with degree 0 (isolates): {len(isolates)}")
-G_full.remove_nodes_from(isolates)
-
-
-# ── 2. Giant Connected Component ─────────────────────────────────────────────
-gcc_nodes = max(nx.connected_components(G_full), key=len)
-G = G_full.subgraph(gcc_nodes).copy()
-
-mapping = {n: i for i, n in enumerate(sorted(G.nodes()))}
-G = nx.relabel_nodes(G, mapping)
-
-N = G.number_of_nodes()
-E = G.number_of_edges()
-print(f"\nGCC  N={N}  E={E}")
+print(f"GCC  N={res['N']}  E={res['E']}")
+print(f"<k>   = {res['k_avg']:.4f}")
+print(f"<k2>  = {res['k2_avg']:.4f}")
+print(f"<k2>/<k> = {res['knn_uncorr']:.4f}")
+print(f"<c>   = {res['c_avg']:.6f}")
+print(f"Triangles = {res['n_triangles']:,}")
 
 
-# ── 3. Pointer-based adjacency structure (Assignment 1) ──────────────────────
-# D[i]  : degree of node i                               (length N)
-# P1[i] : first pointer  – start of node i's block in V  (frozen)
-# P2[i] : second pointer – current write-head            (advances in pass 2)
-# V     : flat neighbour list                            (length 2E)
-
-gcc_edge_list = list(G.edges())
-
-# Pass 1: count degrees
-D = np.zeros(N, dtype=np.int64)
-for u, v in gcc_edge_list:
-    D[u] += 1
-    D[v] += 1
-
-# Initialise pointers (P1 = exclusive prefix sum of D; P2 = copy of P1)
-P1 = np.zeros(N, dtype=np.int64)
-for i in range(1, N):
-    P1[i] = P1[i-1] + D[i-1]
-P2 = P1.copy()
-
-# Pass 2: fill V
-V = np.zeros(2 * E, dtype=np.int64)
-for u, v in gcc_edge_list:
-    V[P2[u]] = v;  P2[u] += 1
-    V[P2[v]] = u;  P2[v] += 1
-
-assert np.all(P2 == P1 + D), "Pointer check failed"
-assert int(D.sum()) == 2 * E,  "Degree sum ≠ 2E"
-
-adj_set = [set(V[P1[i]:P1[i] + D[i]]) for i in range(N)]
-
-k_max  = int(D.max())
-k_min  = int(D.min())
-k_avg  = float(D.mean())
-k2_avg = float((D**2).mean())
-print(f"<k>   = {k_avg:.4f}")
-print(f"kmax  = {k_max}   kmin = {k_min}")
+# Optional report figure
+plot_gcc_network(G, os.path.join(RESULTS, "a2_gcc_network.pdf"))
 
 
-# ── 4. Degree distribution P(k) and complementary CDF P_c(k) ─────────────────
-nk = np.zeros(k_max + 1, dtype=np.int64)
-for i in range(N):
-    nk[D[i]] += 1
-
-Pk = nk / N
-
-Pc = np.zeros(k_max + 1)
-Pc[k_max] = Pk[k_max]
-for k in range(k_max - 1, -1, -1):
-    Pc[k] = Pc[k + 1] + Pk[k]
-
-assert abs(float(Pk.sum()) - 1.0) < 1e-9, "P(k) does not sum to 1"
-assert abs(float(Pc[0])   - 1.0) < 1e-9, "P_c(0) should equal 1"
-
-print(f"\nSum P(k) = {Pk.sum():.6f}  (should be 1.0)")
-print(f"P_c(0)   = {Pc[0]:.6f}  (should be 1.0)")
-
-
-# ── 5. Average nearest-neighbour degree k_nn(k) ──────────────────────────────
-knn_acc = np.zeros(k_max + 1)
-for i in range(N):
-    ki = D[i]
-    if ki == 0:
-        continue
-    neigh_deg_sum = sum(int(D[V[pos]]) for pos in range(P1[i], P1[i] + ki))
-    knn_acc[ki] += neigh_deg_sum / ki
-
-knn = np.zeros(k_max + 1)
-for k in range(1, k_max + 1):
-    if nk[k] > 0:
-        knn[k] = knn_acc[k] / nk[k]
-
-knn_uncorr = k2_avg / k_avg
-print(f"\n<k²>/<k> = {knn_uncorr:.4f}  (uncorrelated-network reference)")
-
-
-# ── 6. Clustering spectrum c(k) ──────────────────────────────────────────────
-ck_acc          = np.zeros(k_max + 1)
-total_triangles = 0
-
-for i in range(N):
-    ki = int(D[i])
-    if ki < 2:
-        continue
-    neighbours = V[P1[i]: P1[i] + ki]
-    tri_i = 0
-    for a in range(ki):
-        j1 = int(neighbours[a])
-        for b in range(a + 1, ki):
-            j2 = int(neighbours[b])
-            if j2 in adj_set[j1]:
-                tri_i += 1
-    total_triangles += tri_i
-    ck_acc[ki] += tri_i / (ki * (ki - 1) / 2)
-
-ck = np.zeros(k_max + 1)
-for k in range(2, k_max + 1):
-    if nk[k] > 0:
-        ck[k] = ck_acc[k] / nk[k]
-
-c_avg       = float(ck_acc.sum()) / N
-n_triangles = total_triangles // 3
-
-print(f"\n<c>       = {c_avg:.6f}")
-print(f"Triangles = {n_triangles:,}")
-
-c_nx = nx.average_clustering(G)
-print(f"NetworkX <c> = {c_nx:.6f}  (cross-check)")
-
-r = nx.degree_assortativity_coefficient(G)
-print(f"Degree assortativity r = {r:.4f}")
-
-
-# ── 7. Prepare non-zero index arrays ─────────────────────────────────────────
-ks_nz  = np.array([k for k in range(1, k_max + 1) if nk[k] > 0])
-Pk_nz  = Pk[ks_nz]
-Pc_nz  = Pc[ks_nz]
-knn_nz = knn[ks_nz]
-
-ks_ck  = np.array([k for k in range(2, k_max + 1) if nk[k] > 0 and ck[k] > 0])
-ck_nz  = ck[ks_ck]
-
-
-# ── 8. Plots — Assignment 1 figures (improved) ───────────────────────────────
-
-# P(k) linear
+# P(k) and Pc(k) together
 fig, ax = plt.subplots(figsize=(5, 4))
-ax.bar(ks_nz, Pk_nz, width=0.8, color="steelblue", alpha=0.8)
-ax.axvline(k_avg, color="tomato", lw=1.5, ls="--",
-           label=rf"$\langle k \rangle = {k_avg:.2f}$")
-ax.set(xlabel=r"$k$", ylabel=r"$P(k)$", title="Degree distribution (linear)")
-ax.legend(fontsize=9)
+ax.loglog(ks_pk, res["Pk"][ks_pk], "o-", ms=4, color="steelblue", label=r"$P(k)$")
+ax.loglog(ks_pk, res["Pc"][ks_pk], "s-", ms=4, color="tomato", label=r"$P_c(k)$")
+ax.set_xlabel(r"$k$")
+ax.set_ylabel("Probability")
+ax.set_title("Degree distribution")
+ax.legend()
 plt.tight_layout()
-plt.savefig(os.path.join(RESULTS, "a1_degree_dist_linear.pdf"))
-plt.show()
+plt.savefig(os.path.join(RESULTS, "a2_degree_distributions.pdf"))
+plt.close()
 
-# P(k) log-log
-fig, ax = plt.subplots(figsize=(5, 4))
-ax.loglog(ks_nz, Pk_nz, "o", ms=4, color="steelblue")
-ax.set(xlabel=r"$k$", ylabel=r"$P(k)$", title="Degree distribution (log-log)")
-plt.tight_layout()
-plt.savefig(os.path.join(RESULTS, "a1_degree_dist_loglog.pdf"))
-plt.show()
-
-# CCDF
-fig, ax = plt.subplots(figsize=(5, 4))
-ax.loglog(ks_nz, Pc_nz, color="steelblue")
-ax.set(xlabel=r"$k$", ylabel=r"$P(K \geq k)$", title="CCDF (log-log)")
-plt.tight_layout()
-plt.savefig(os.path.join(RESULTS, "a1_degree_dist_ccdf.pdf"))
-plt.show()
-
-
-# ── 9. Plots — Assignment 2 figures ──────────────────────────────────────────
 
 # k_nn(k)
 fig, ax = plt.subplots(figsize=(5, 4))
-ax.loglog(ks_nz, knn_nz, "o", ms=4, color="darkorange")
-ax.axhline(knn_uncorr, color="tomato", lw=1.5, ls="--",
-           label=rf"$\langle k^2 \rangle / \langle k \rangle = {knn_uncorr:.2f}$")
-ax.set(xlabel=r"$k$", ylabel=r"$k_{\mathrm{nn}}(k)$",
-       title="Average nearest-neighbour degree")
-ax.legend(fontsize=9)
+ax.loglog(ks_pk, res["knn"][ks_pk], "o", ms=4, color="darkorange")
+ax.axhline(
+    res["knn_uncorr"],
+    color="black",
+    lw=1.2,
+    ls="--",
+    label=rf"$\langle k^2 \rangle / \langle k \rangle = {res['knn_uncorr']:.2f}$",
+)
+ax.set_xlabel(r"$k$")
+ax.set_ylabel(r"$k_{\mathrm{nn}}(k)$")
+ax.set_title("Average nearest-neighbour degree")
+ax.legend()
 plt.tight_layout()
 plt.savefig(os.path.join(RESULTS, "a2_knn.pdf"))
-plt.show()
+plt.close()
+
 
 # c(k)
 fig, ax = plt.subplots(figsize=(5, 4))
-ax.loglog(ks_ck, ck_nz, "o", ms=4, color="green")
-ax.axhline(c_avg, color="tomato", lw=1.5, ls="--",
-           label=rf"$\langle c \rangle = {c_avg:.4f}$")
-ax.set(xlabel=r"$k$", ylabel=r"$c(k)$", title="Clustering spectrum")
-ax.legend(fontsize=9)
+ax.loglog(ks_ck, res["ck"][ks_ck], "o", ms=4, color="forestgreen")
+ax.axhline(
+    res["c_avg"],
+    color="black",
+    lw=1.2,
+    ls="--",
+    label=rf"$\langle c \rangle = {res['c_avg']:.4f}$",
+)
+ax.set_xlabel(r"$k$")
+ax.set_ylabel(r"$c(k)$")
+ax.set_title("Clustering spectrum")
+ax.legend()
 plt.tight_layout()
 plt.savefig(os.path.join(RESULTS, "a2_ck.pdf"))
-plt.show()
+plt.close()
 
 
-# ── 10. Save summary CSVs ─────────────────────────────────────────────────────
-with open(os.path.join(RESULTS, "a2_summary.csv"), "w", newline="") as f:
-    w = csv.writer(f)
-    w.writerow(["metric", "value"])
-    for label, val in [
-        ("N_gcc",           N),
-        ("E_gcc",           E),
-        ("<k>",             round(k_avg,      4)),
-        ("<k2>",            round(k2_avg,     4)),
-        ("kmax",            k_max),
-        ("kmin",            k_min),
-        ("<k2>/<k>",        round(knn_uncorr, 4)),
-        ("<c>",             round(c_avg,      6)),
-        ("triangles",       n_triangles),
-        ("assortativity_r", round(r,          4)),
-    ]:
-        w.writerow([label, val])
+save_csv(
+    os.path.join(RESULTS, "a2_summary.csv"),
+    ["metric", "value"],
+    [
+        ["N_gcc", res["N"]],
+        ["E_gcc", res["E"]],
+        ["<k>", round(res["k_avg"], 4)],
+        ["<k2>", round(res["k2_avg"], 4)],
+        ["<k2>/<k>", round(res["knn_uncorr"], 4)],
+        ["<c>", round(res["c_avg"], 6)],
+        ["triangles", res["n_triangles"]],
+        ["assortativity_r", round(res["r"], 4)],
+    ],
+)
 
-with open(os.path.join(RESULTS, "a2_degree_table.csv"), "w", newline="") as f:
-    w = csv.writer(f)
-    w.writerow(["k", "nk", "Pk", "Pc_k", "knn_k", "c_k"])
-    for k in range(1, k_max + 1):
-        w.writerow([k, int(nk[k]), float(Pk[k]),
-                    float(Pc[k]), float(knn[k]), float(ck[k])])
+save_csv(
+    os.path.join(RESULTS, "a2_degree_table.csv"),
+    ["k", "nk", "Pk", "Pc_k", "knn_k", "c_k"],
+    [
+        [k, int(res["nk"][k]), float(res["Pk"][k]), float(res["Pc"][k]), float(res["knn"][k]), float(res["ck"][k])]
+        for k in range(1, res["k_max"] + 1)
+    ],
+)
 
 print("\nDone. Results in", RESULTS)
