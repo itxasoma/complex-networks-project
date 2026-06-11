@@ -9,8 +9,8 @@
 #   make clean  -> remove results/
 
 PYTHON = python3
-SRC    = src
-RES    = results
+SRC    = part1/src
+RES    = part1/results
 
 .PHONY: all a1 a2 a3 a4 a4-plots clean
 

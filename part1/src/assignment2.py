@@ -27,13 +27,13 @@ plt.style.use(os.path.join(SCRIPT_DIR, "mplstyle", "science.mplstyle"))
 def plot_gcc_network(G, outpath):
     deg = dict(G.degree())
     nodes = list(G.nodes())
-    node_sizes = [8 + 2.0 * np.sqrt(deg[n]) for n in nodes]
+    node_sizes = [5 + 2.0 * np.sqrt(deg[n]) for n in nodes]
     node_colors = [deg[n] for n in nodes]
 
     pos = nx.spring_layout(G, seed=42, k=0.15)
 
-    fig, ax = plt.subplots(figsize=(6, 5))
-    nx.draw_networkx_edges(G, pos, ax=ax, width=0.15, alpha=0.12, edge_color="gray")
+    fig, ax = plt.subplots(figsize=(5, 5))
+    nx.draw_networkx_edges(G, pos, ax=ax, width=0.15, alpha=0.2, edge_color="gray")
     nx.draw_networkx_nodes(
         G,
         pos,
