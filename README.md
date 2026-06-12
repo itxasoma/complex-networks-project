@@ -161,4 +161,4 @@ Detects the community structure of the GCC using the **Louvain algorithm** (gree
 
 ## Author
 
-**Itxaso Muñoz-Aldalur** — MASM, Universitat de Barcelona / Universitat Politècnica de Catalunya, 2025–2026.
+**Itxaso Muñoz-Aldalur** — Universitat de Barcelona / Universitat Politècnica de Catalunya, 2025–2026.
