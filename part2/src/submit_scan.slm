@@ -1,40 +1,53 @@
 #!/bin/bash
+#SBATCH --job-name=part2_scan
+#SBATCH --output=part2_scan_%j.out
+#SBATCH --error=part2_scan_%j.err
+#SBATCH --time=24:00:00
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=8G
+
 set -euo pipefail
 
-# Run from the repository root
-SCRIPT_DIR=$(cd -- "$(dirname -- "$0")" && pwd)
-if [ -f "$SCRIPT_DIR/Makefile" ]; then
-  ROOT_DIR="$SCRIPT_DIR"
-elif [ -f "$SCRIPT_DIR/../Makefile" ]; then
-  ROOT_DIR=$(cd -- "$SCRIPT_DIR/.." && pwd)
-else
-  ROOT_DIR="$PWD"
+# Single-file cluster launcher for Part 2.
+# Put this file in part2/src/submit_scan.slm and submit from the repo root with:
+#   sbatch part2/src/submit_scan.slm
+#
+# It behaves like run_part2_scan.sh, but runs directly inside one Slurm job.
+# No extra launcher file is needed.
+#
+# Optional overrides when submitting:
+#   sbatch --export=ALL,NRUNS=2000 part2/src/submit_scan.slm
+#   sbatch --export=ALL,ONLY_GAMMA=3.5 part2/src/submit_scan.slm
+#   sbatch --export=ALL,ONLY_N=300000 part2/src/submit_scan.slm
+#   sbatch --export=ALL,LMIN_35=0.07,LMAX_35=0.15 part2/src/submit_scan.slm
+
+cd "$SLURM_SUBMIT_DIR"
+
+if [ ! -f Makefile ]; then
+  echo "ERROR: submit this job from the repository root"
+  exit 1
 fi
-cd "$ROOT_DIR"
 
 mkdir -p part2/results/raw
 
-GAMMAS=(2.5)
-#GAMMAS=(3.5 2.5)
-SIZES=(10000 30000 50000 100000)
-#SIZES=(300000 500000 1000000)
+GAMMAS=(3.5 2.5)
+SIZES=(10000 30000 50000 100000 300000 500000 1000000)
 
 NRUNS=${NRUNS:-2000}
-
 LMIN_35=${LMIN_35:-0.05}
 LMAX_35=${LMAX_35:-0.20}
 NLAM_35=${NLAM_35:-25}
-
 LMIN_25=${LMIN_25:-0.005}
 LMAX_25=${LMAX_25:-0.08}
 NLAM_25=${NLAM_25:-25}
-
 ONLY_GAMMA=${ONLY_GAMMA:-}
 ONLY_N=${ONLY_N:-}
 DRY_RUN=${DRY_RUN:-0}
 
 printf 'Starting Part 2 scan at %s\n' "$(date)"
-printf 'Repository root: %s\n' "$ROOT_DIR"
+printf 'Working directory: %s\n' "$SLURM_SUBMIT_DIR"
 printf 'NRUNS=%s\n' "$NRUNS"
 
 for GAMMA in "${GAMMAS[@]}"; do
@@ -65,6 +78,15 @@ for GAMMA in "${GAMMAS[@]}"; do
     fi
 
     OUTFILE="part2/results/raw/part2_N${N}_g${GAMMA}.dat"
+
+    if [ -s "$OUTFILE" ]; then
+      NLINES=$(wc -l < "$OUTFILE")
+      if [ "$NLINES" -gt 1 ]; then
+        printf 'Skipping completed case: gamma=%s N=%s (%s lines)\n' "$GAMMA" "$N" "$NLINES"
+        continue
+      fi
+    fi
+
     CMD=(make run2 N="$N" GAMMA="$GAMMA" NRUNS="$NRUNS" LMIN="$LMIN" LMAX="$LMAX" NLAM="$NLAM" OUT2="$OUTFILE")
 
     echo

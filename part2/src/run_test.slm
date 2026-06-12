@@ -1,0 +1,22 @@
+#!/bin/bash
+#SBATCH --job-name=part2_test
+#SBATCH --output=part2_test_%j.out
+#SBATCH --error=part2_test_%j.err
+#SBATCH --time=00:10:00
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=2G
+
+set -e
+
+echo "Job started on $(date)"
+
+cd "$SLURM_SUBMIT_DIR"
+mkdir -p part2/results part2/figures
+
+make clean
+make run_test
+make binning
+
+echo "Job finished on $(date)"
