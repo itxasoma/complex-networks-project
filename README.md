@@ -37,7 +37,7 @@ Python ≥ 3.9
 python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
-pip install numpy matplotlib networkx python-louvain
+pip install numpy matplotlib networkx python-louvain pandas
 ```
 
 > `python-louvain` provides the `community` package used in Assignment 3.
