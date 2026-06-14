@@ -1,7 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
-# Run from the repository root
+# Local runner (NOT needed on the cluster — use submit_scan.slm there).
+# This is only useful for quick local tests on small N.
+
 SCRIPT_DIR=$(cd -- "$(dirname -- "$0")" && pwd)
 if [ -f "$SCRIPT_DIR/Makefile" ]; then
   ROOT_DIR="$SCRIPT_DIR"
@@ -14,26 +16,28 @@ cd "$ROOT_DIR"
 
 mkdir -p part2/results/raw
 
-GAMMAS=(2.5)
-#GAMMAS=(3.5 2.5)
-SIZES=(10000 30000 50000 100000)
-#SIZES=(300000 500000 1000000)
+# ---------------------------------------------------------------
+# For local tests use only small sizes.
+# On the cluster use submit_scan.slm which covers all sizes.
+# ---------------------------------------------------------------
+GAMMAS=(3.5 2.5)
+SIZES=(10000 30000 50000)
 
-NRUNS=${NRUNS:-2000}
+NRUNS=${NRUNS:-5000}
 
 LMIN_35=${LMIN_35:-0.05}
 LMAX_35=${LMAX_35:-0.20}
-NLAM_35=${NLAM_35:-25}
+NLAM_35=${NLAM_35:-40}
 
 LMIN_25=${LMIN_25:-0.005}
 LMAX_25=${LMAX_25:-0.08}
-NLAM_25=${NLAM_25:-25}
+NLAM_25=${NLAM_25:-40}
 
 ONLY_GAMMA=${ONLY_GAMMA:-}
 ONLY_N=${ONLY_N:-}
 DRY_RUN=${DRY_RUN:-0}
 
-printf 'Starting Part 2 scan at %s\n' "$(date)"
+printf 'Starting Part 2 LOCAL scan at %s\n' "$(date)"
 printf 'Repository root: %s\n' "$ROOT_DIR"
 printf 'NRUNS=%s\n' "$NRUNS"
 
@@ -68,7 +72,8 @@ for GAMMA in "${GAMMAS[@]}"; do
     CMD=(make run2 N="$N" GAMMA="$GAMMA" NRUNS="$NRUNS" LMIN="$LMIN" LMAX="$LMAX" NLAM="$NLAM" OUT2="$OUTFILE")
 
     echo
-    printf 'Running gamma=%s N=%s range=[%s,%s] nlam=%s\n' "$GAMMA" "$N" "$LMIN" "$LMAX" "$NLAM"
+    printf 'Running gamma=%s N=%s range=[%s,%s] nlam=%s nruns=%s\n' \
+           "$GAMMA" "$N" "$LMIN" "$LMAX" "$NLAM" "$NRUNS"
     printf 'Output: %s\n' "$OUTFILE"
 
     if [ "$DRY_RUN" = "1" ]; then
@@ -79,4 +84,4 @@ for GAMMA in "${GAMMAS[@]}"; do
   done
 done
 
-printf '\nFinished Part 2 scan at %s\n' "$(date)"
+printf '\nFinished Part 2 LOCAL scan at %s\n' "$(date)"

@@ -383,6 +383,13 @@ contains
     integer(int64), allocatable :: act_stub(:), act_pos(:)
     real(real64) :: t, rate, p_inf
     integer(int32) :: v
+    !-----------------------------------------------------------------
+    ! FIX #1: use a dedicated index variable (idx) for sampling into
+    ! act_stub, so the array is dereferenced only once, not twice.
+    ! FIX #2: use a dedicated index variable (ridx) for inf_nodes, with
+    ! a clamp, preventing the rare out-of-bounds when urand()==1.
+    !-----------------------------------------------------------------
+    integer(int64) :: idx, ridx
 
     n = size(rowptr, kind=int64) - 1_int64
 
@@ -423,14 +430,25 @@ contains
       p_inf = lambda * real(eact, real64) / rate
 
       if (urand() < p_inf) then
-        stub = act_stub(1_int64 + int(urand() * real(eact, real64), int64))
-        if (stub < 1_int64) stub = 1_int64
-        if (stub > eact) stub = eact
-        stub = act_stub(stub)
+        !-----------------------------------------------------------------
+        ! FIX #1: compute the index first, clamp it, then read act_stub once.
+        ! The old code did: stub = act_stub(...)  /  stub = act_stub(stub)
+        ! which dereferenced act_stub twice (double indirection).
+        !-----------------------------------------------------------------
+        idx = 1_int64 + int(urand() * real(eact, real64), int64)
+        if (idx < 1_int64) idx = 1_int64
+        if (idx > eact)    idx = eact
+        stub = act_stub(idx)
         call infect_event(stub, rowptr, colind, rev, src, infected, touched, ntouched, &
                           inf_nodes, where_inf, ni, act_stub, act_pos, eact)
       else
-        v = inf_nodes(1_int64 + int(urand() * real(ni, real64), int64))
+        !-----------------------------------------------------------------
+        ! FIX #2: clamp the recovery node index before accessing inf_nodes.
+        !-----------------------------------------------------------------
+        ridx = 1_int64 + int(urand() * real(ni, real64), int64)
+        if (ridx < 1_int64) ridx = 1_int64
+        if (ridx > ni)      ridx = ni
+        v = inf_nodes(ridx)
         call recover_event(v, rowptr, colind, rev, infected, inf_nodes, where_inf, ni, &
                            act_stub, act_pos, eact)
       endif
@@ -465,10 +483,10 @@ program sis_lifespan_cm
   ! defaults
   N       = 100000_int64
   gamma   = 3.5_real64
-  nruns   = 2000_int64
-  lmin    = 0.02_real64
-  lmax    = 0.10_real64
-  nlambda = 25
+  nruns   = 5000_int64
+  lmin    = 0.05_real64
+  lmax    = 0.20_real64
+  nlambda = 40
   outfile = 'part2_results.dat'
 
   call get_command_argument(1, arg)
@@ -522,7 +540,8 @@ program sis_lifespan_cm
     pend_sum = 0
 
     do r = 1, nruns
-      call run_lifespan(lambda, cov_thr_nodes, deg4_nodes(1 + int(urand() * real(nk4, real64))), &
+      call run_lifespan(lambda, cov_thr_nodes, &
+                        deg4_nodes(1 + int(urand() * real(nk4, real64))), &
                         rowptr, colind, rev, src, tau, pend)
       pend_sum = pend_sum + pend
       if (pend == 0) tau_sum = tau_sum + tau

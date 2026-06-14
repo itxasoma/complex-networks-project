@@ -16,7 +16,7 @@ PYTHON := python3
 FC     := gfortran
 
 # Production flags for Part 2
-FFLAGS := -O3 -std=f2008 -Wall -Wextra
+FFLAGS := -O2 -std=f2008 -Wall -Wextra
 
 SRC1   := part1/src
 RES1   := part1/results
