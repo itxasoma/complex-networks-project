@@ -142,6 +142,7 @@ def make_tau_plot(gamma, gamma_df):
     ax.legend(fontsize=7, ncol=2)
     plt.tight_layout()
     plt.savefig(os.path.join(FIG_DIR, f"part2_tau_gamma_{gamma:.1f}.pdf"))
+    plt.savefig(os.path.join(FIG_DIR, f"part2_tau_gamma_{gamma:.1f}.png"), dpi=300)
     plt.close()
 
 
@@ -182,6 +183,7 @@ def make_lambdap_plot(gamma, peak_df, summary_row):
 
     plt.tight_layout()
     plt.savefig(os.path.join(FIG_DIR, f"part2_lambdap_gamma_{gamma:.1f}.pdf"))
+    plt.savefig(os.path.join(FIG_DIR, f"part2_lambdap_gamma_{gamma:.1f}.png"), dpi=300)
     plt.close()
 
 
@@ -205,6 +207,7 @@ def make_taupeak_plot(gamma, peak_df, summary_row):
     ax.set_title(rf"$\gamma = {gamma:.1f}$")
     plt.tight_layout()
     plt.savefig(os.path.join(FIG_DIR, f"part2_taupeak_gamma_{gamma:.1f}.pdf"))
+    plt.savefig(os.path.join(FIG_DIR, f"part2_taupeak_gamma_{gamma:.1f}.png"), dpi=300)
     plt.close()
 
 
@@ -230,6 +233,7 @@ def make_pend_lc_plot(gamma, pend_df, summary_row):
     ax.set_title(rf"$\gamma = {gamma:.1f}$")
     plt.tight_layout()
     plt.savefig(os.path.join(FIG_DIR, f"part2_pend_lc_gamma_{gamma:.1f}.pdf"))
+    plt.savefig(os.path.join(FIG_DIR, f"part2_pend_lc_gamma_{gamma:.1f}.png"), dpi=300)
     plt.close()
 
 
@@ -253,6 +257,7 @@ def make_collapse_tau_plot(gamma, gamma_df, summary_row):
     ax.legend(fontsize=7, ncol=2)
     plt.tight_layout()
     plt.savefig(os.path.join(FIG_DIR, f"part2_collapse_tau_gamma_{gamma:.1f}.pdf"))
+    plt.savefig(os.path.join(FIG_DIR, f"part2_collapse_tau_gamma_{gamma:.1f}.png"), dpi=300)
     plt.close()
 
 
@@ -276,6 +281,7 @@ def make_collapse_pend_plot(gamma, gamma_df, summary_row):
     ax.legend(fontsize=7, ncol=2)
     plt.tight_layout()
     plt.savefig(os.path.join(FIG_DIR, f"part2_collapse_pend_gamma_{gamma:.1f}.pdf"))
+    plt.savefig(os.path.join(FIG_DIR, f"part2_collapse_pend_gamma_{gamma:.1f}.png"), dpi=300)
     plt.close()
 
 
