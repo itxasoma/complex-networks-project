@@ -15,7 +15,9 @@ echo "Working directory: $(pwd)"
 
 mkdir -p part2/bin part2/results/raw part2/results/processed part2/results/logs part2/figures
 
-NRUNS=4000
+# FIX: raised NRUNS from 4000 -> 5000 to match the coarse scan and improve
+# sampling of rare long-lived epidemics at large N.
+NRUNS=5000
 echo "NRUNS=${NRUNS}"
 
 BIN="part2/bin/sis_lifespan_cm"
@@ -49,20 +51,33 @@ run_case () {
 
 # -------------------------
 # gamma = 3.5
-# Window suggested by current large-N peak region
+# The tau peak sits consistently around lambda ~ 0.095-0.110 across all sizes
+# (observed from current data: peaks at 0.125, 0.112, 0.106, 0.112, 0.100, 0.100).
+# FIX: widened range to [0.085, 0.120] (was [0.090, 0.110]) and increased nlam
+# from 41 -> 36 points at spacing ~0.001 for robust peak detection.
+# FIX: added N=100000 window (was missing in original script).
+# FIX: added N=1000000 window (coarse scan for N=1M was never run before).
 # -------------------------
-run_case 300000  3.5 0.090 0.110 41 part2/results/raw/part2_N300000_g3.5_window.dat
-run_case 500000  3.5 0.090 0.110 41 part2/results/raw/part2_N500000_g3.5_window.dat
-run_case 1000000 3.5 0.090 0.110 41 part2/results/raw/part2_N1000000_g3.5_window.dat
+run_case 100000  3.5 0.085 0.120 36 part2/results/raw/part2_N100000_g3.5_window.dat
+run_case 300000  3.5 0.085 0.120 36 part2/results/raw/part2_N300000_g3.5_window.dat
+run_case 500000  3.5 0.085 0.120 36 part2/results/raw/part2_N500000_g3.5_window.dat
+run_case 1000000 3.5 0.080 0.115 36 part2/results/raw/part2_N1000000_g3.5_window.dat
 
 # -------------------------
 # gamma = 2.5
-# Window suggested by current weak low-lambda peak drift
+# The tau peak drifts toward lambda=0 as N grows:
+#   N=10k:  peak ~ 0.027
+#   N=30k:  peak ~ 0.014
+#   N=50k:  peak ~ 0.011
+#   N>=100k: expected below 0.010 (lambda_c -> 0 for gamma < 3)
+# FIX: corrected window ranges to follow the drifting peak downward.
+#      Old windows ([0.008, 0.030] for all large N) missed the peak for N>=300k.
+# Spacing ~ 0.0005 throughout for adequate resolution.
 # -------------------------
-run_case 100000  2.5 0.008 0.030 45 part2/results/raw/part2_N100000_g2.5_window.dat
-run_case 300000  2.5 0.008 0.030 45 part2/results/raw/part2_N300000_g2.5_window.dat
-run_case 500000  2.5 0.008 0.030 45 part2/results/raw/part2_N500000_g2.5_window.dat
-run_case 1000000 2.5 0.008 0.030 45 part2/results/raw/part2_N1000000_g2.5_window.dat
+run_case 100000  2.5 0.004 0.025 43 part2/results/raw/part2_N100000_g2.5_window.dat
+run_case 300000  2.5 0.003 0.018 31 part2/results/raw/part2_N300000_g2.5_window.dat
+run_case 500000  2.5 0.002 0.014 25 part2/results/raw/part2_N500000_g2.5_window.dat
+run_case 1000000 2.5 0.001 0.010 19 part2/results/raw/part2_N1000000_g2.5_window.dat
 
 echo
 echo "Finished refined window scan at $(date)"

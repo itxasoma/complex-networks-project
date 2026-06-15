@@ -14,14 +14,11 @@ set -euo pipefail
 # Put this file in part2/src/submit_scan.slm and submit from the repo root with:
 #   sbatch part2/src/submit_scan.slm
 #
-# It behaves like run_part2_scan.sh, but runs directly inside one Slurm job.
-# No extra launcher file is needed.
-#
 # Optional overrides when submitting:
-#   sbatch --export=ALL,NRUNS=2000 part2/src/submit_scan.slm
+#   sbatch --export=ALL,NRUNS=5000 part2/src/submit_scan.slm
 #   sbatch --export=ALL,ONLY_GAMMA=3.5 part2/src/submit_scan.slm
-#   sbatch --export=ALL,ONLY_N=300000 part2/src/submit_scan.slm
-#   sbatch --export=ALL,LMIN_35=0.07,LMAX_35=0.15 part2/src/submit_scan.slm
+#   sbatch --export=ALL,ONLY_N=1000000 part2/src/submit_scan.slm
+#   sbatch --export=ALL,LMIN_35=0.05,LMAX_35=0.20 part2/src/submit_scan.slm
 
 cd "$SLURM_SUBMIT_DIR"
 
@@ -35,13 +32,22 @@ mkdir -p part2/results/raw
 GAMMAS=(3.5 2.5)
 SIZES=(10000 30000 50000 100000 300000 500000 1000000)
 
-NRUNS=${NRUNS:-2000}
+# FIX: raised default NRUNS from 2000 -> 5000 so that rare long-lived epidemics
+# are properly sampled at large N.
+NRUNS=${NRUNS:-5000}
+
+# FIX (gamma=3.5): range is unchanged; the coarse scan already covers the peak
+# region (0.05-0.20). Fine-tuning is delegated to the window script.
 LMIN_35=${LMIN_35:-0.05}
 LMAX_35=${LMAX_35:-0.20}
 NLAM_35=${NLAM_35:-25}
-LMIN_25=${LMIN_25:-0.005}
+
+# FIX (gamma=2.5): lower bound reduced from 0.005 -> 0.001 so the coarse scan
+# captures the tau peak for large N (N>=300k), where lambda_p can fall below 0.005.
+LMIN_25=${LMIN_25:-0.001}
 LMAX_25=${LMAX_25:-0.08}
 NLAM_25=${NLAM_25:-25}
+
 ONLY_GAMMA=${ONLY_GAMMA:-}
 ONLY_N=${ONLY_N:-}
 DRY_RUN=${DRY_RUN:-0}
