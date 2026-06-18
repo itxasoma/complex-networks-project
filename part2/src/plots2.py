@@ -9,12 +9,23 @@ Reads:
   part2/results/processed/part2_critical_exponents.csv
 
 Writes:
-  part2/figures/part2_tau_gamma_*.pdf
-  part2/figures/part2_lambdap_gamma_*.pdf
-  part2/figures/part2_taupeak_gamma_*.pdf
-  part2/figures/part2_pend_lc_gamma_*.pdf
-  part2/figures/part2_collapse_tau_gamma_*.pdf
-  part2/figures/part2_collapse_pend_gamma_*.pdf
+  part2/figures/part2_tau_gamma_*.pdf/png
+  part2/figures/part2_lambdap_gamma_*.pdf/png
+  part2/figures/part2_taupeak_gamma_*.pdf/png
+  part2/figures/part2_pend_lc_gamma_*.pdf/png
+  part2/figures/part2_collapse_tau_gamma_*.pdf/png
+  part2/figures/part2_collapse_pend_gamma_*.pdf/png
+
+FIXES applied:
+  FIX-1: Data collapse plots now exclude rows where P_end > P_END_EXCLUDE
+         (default 0.95), i.e. points where almost all runs were endemic and
+         the average tau is computed over very few samples.  These points
+         create spurious scatter on the right tail of the collapse.
+  FIX-2: Right panel of make_lambdap_plot switches to a linear-scale
+         diagnostic when any diff = lambda_p - lambda_c is non-positive,
+         instead of producing a silent blank log-log plot.
+  FIX-3: make_pend_lc_plot does not draw the fit line when beta_over_nu is
+         NaN (indicating the fit returned a wrong sign — see scaling2.py).
 """
 
 import glob
@@ -37,6 +48,10 @@ if os.path.exists(STYLE_FILE):
     plt.style.use(STYLE_FILE)
 
 FILE_RE = re.compile(r"^part2_N(?P<N>\d+)_g(?P<gamma>\d+(?:\.\d+)?)(?P<window>_window)?\.dat$")
+
+# FIX-1: exclude lambda points where P_end is above this threshold from
+# data-collapse plots (too few non-endemic samples → noisy tau estimate).
+P_END_EXCLUDE = 0.95
 
 
 def list_raw_files():
@@ -171,15 +186,41 @@ def make_lambdap_plot(gamma, peak_df, summary_row):
     ax = axes[1]
     if np.isfinite(lambda_c):
         diff = lp - lambda_c
-        ok = safe_loglog(ax, N, diff, "o", ms=4, label=r"$\lambda_p-\lambda_c$")
-        if ok and np.isfinite(inv_nu):
-            xfit = np.logspace(np.log10(np.min(N)), np.log10(np.max(N)), 300)
-            yfit = A * xfit ** (-inv_nu)
-            safe_loglog(ax, xfit, yfit, "-", lw=1.4, label=rf"$1/\nu={inv_nu:.3f}$, $R^2={fit_r2:.4f}$")
+        all_positive = np.all(diff > 0.0)
+
+        if all_positive:
+            # Normal case: log-log plot of lambda_p - lambda_c vs N
+            ok = safe_loglog(ax, N, diff, "o", ms=4, label=r"$\lambda_p-\lambda_c$")
+            if ok and np.isfinite(inv_nu):
+                xfit = np.logspace(np.log10(np.min(N)), np.log10(np.max(N)), 300)
+                yfit = A * xfit ** (-inv_nu)
+                safe_loglog(ax, xfit, yfit, "-", lw=1.4,
+                            label=rf"$1/\nu={inv_nu:.3f}$, $R^2={fit_r2:.4f}$")
+                ax.legend(fontsize=7)
+            ax.set_xlabel(r"$N$")
+            ax.set_ylabel(r"$|\lambda_p(N)-\lambda_c|$")
+            ax.set_title("Notes-style fit (log-log)")
+        else:
+            # FIX-2: some diff values are <= 0 (lambda_c >= some lambda_p),
+            # meaning the scan slightly over-shot.  Fall back to a linear plot
+            # that shows all points so the user can diagnose the issue.
+            ax.plot(N, diff, "o", ms=4, color="tab:orange",
+                    label=r"$\lambda_p - \lambda_c$")
+            ax.axhline(0.0, color="black", lw=0.8, ls="--")
+            ax.set_xscale("log")
+            ax.set_xlabel(r"$N$")
+            ax.set_ylabel(r"$\lambda_p(N)-\lambda_c$  (linear, some \u2264 0)")
+            ax.set_title("Diagnostic: diff not all positive — check $\\lambda_c$")
             ax.legend(fontsize=7)
-    ax.set_xlabel(r"$N$")
-    ax.set_ylabel(r"$|\lambda_p(N)-\lambda_c|$")
-    ax.set_title("Notes-style fit")
+            # Annotate so the issue is obvious
+            ax.text(0.05, 0.95,
+                    "WARNING: lambda_c overestimated\nfor some sizes",
+                    transform=ax.transAxes, fontsize=7,
+                    va="top", color="tab:red")
+    else:
+        ax.text(0.5, 0.5, r"$\lambda_c$ not available",
+                ha="center", va="center", transform=ax.transAxes, fontsize=9)
+        ax.set_title("Notes-style fit")
 
     plt.tight_layout()
     plt.savefig(os.path.join(FIG_DIR, f"part2_lambdap_gamma_{gamma:.1f}.pdf"))
@@ -222,11 +263,17 @@ def make_pend_lc_plot(gamma, pend_df, summary_row):
     exponent = float(summary_row["beta_over_nu"]) if pd.notna(summary_row["beta_over_nu"]) else np.nan
     amp = float(summary_row["pend_amp"]) if pd.notna(summary_row["pend_amp"]) else np.nan
     r2 = float(summary_row["pend_fit_r2"]) if pd.notna(summary_row["pend_fit_r2"]) else np.nan
-    if np.isfinite(exponent) and np.isfinite(amp):
+
+    # FIX-3: only draw the fit line if beta_over_nu is valid (positive).
+    # If scaling2.py returned NaN (wrong-sign fit), skip the line silently.
+    if np.isfinite(exponent) and exponent > 0.0 and np.isfinite(amp):
         xfit = np.logspace(np.log10(np.min(N)), np.log10(np.max(N)), 300)
         yfit = amp * xfit ** (-exponent)
         safe_loglog(ax, xfit, yfit, "-", lw=1.4, label=rf"$\beta/\nu={exponent:.3f}$, $R^2={r2:.4f}$")
         ax.legend(fontsize=7)
+    elif not np.isfinite(exponent):
+        ax.text(0.05, 0.95, "Fit not available\n(insufficient scaling regime)",
+                transform=ax.transAxes, fontsize=7, va="top", color="tab:orange")
 
     ax.set_xlabel(r"$N$")
     ax.set_ylabel(r"$P_{\mathrm{end}}(\lambda_c, N)$")
@@ -246,6 +293,10 @@ def make_collapse_tau_plot(gamma, gamma_df, summary_row):
 
     fig, ax = plt.subplots(figsize=(5.2, 4.0))
     for N, sdf in sorted(gamma_df.groupby("N"), key=lambda z: z[0]):
+        # FIX-1: exclude high-P_end rows (endemic-dominated, too few tau samples)
+        sdf = sdf.loc[sdf["P_end"] <= P_END_EXCLUDE].copy()
+        if len(sdf) < 2:
+            continue
         x = (sdf["lambda"].to_numpy(dtype=float) - lambda_c) * (float(N) ** inv_nu)
         y = sdf["tau"].to_numpy(dtype=float) / (float(N) ** gamma1_over_nu)
         mask = np.isfinite(x) & np.isfinite(y) & (y > 0.0)
@@ -270,6 +321,11 @@ def make_collapse_pend_plot(gamma, gamma_df, summary_row):
 
     fig, ax = plt.subplots(figsize=(5.2, 4.0))
     for N, sdf in sorted(gamma_df.groupby("N"), key=lambda z: z[0]):
+        # FIX-1: exclude high-P_end rows (near-fully endemic regime; P_end
+        # saturates to 1 and adds a flat tail that disrupts the collapse)
+        sdf = sdf.loc[sdf["P_end"] <= P_END_EXCLUDE].copy()
+        if len(sdf) < 2:
+            continue
         x = (sdf["lambda"].to_numpy(dtype=float) - lambda_c) * (float(N) ** inv_nu)
         y = sdf["P_end"].to_numpy(dtype=float) * (float(N) ** beta_over_nu)
         mask = np.isfinite(x) & np.isfinite(y) & (y > 0.0)

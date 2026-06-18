@@ -383,12 +383,6 @@ contains
     integer(int64), allocatable :: act_stub(:), act_pos(:)
     real(real64) :: t, rate, p_inf
     integer(int32) :: v
-    !-----------------------------------------------------------------
-    ! FIX #1: use a dedicated index variable (idx) for sampling into
-    ! act_stub, so the array is dereferenced only once, not twice.
-    ! FIX #2: use a dedicated index variable (ridx) for inf_nodes, with
-    ! a clamp, preventing the rare out-of-bounds when urand()==1.
-    !-----------------------------------------------------------------
     integer(int64) :: idx, ridx
 
     n = size(rowptr, kind=int64) - 1_int64
@@ -430,11 +424,6 @@ contains
       p_inf = lambda * real(eact, real64) / rate
 
       if (urand() < p_inf) then
-        !-----------------------------------------------------------------
-        ! FIX #1: compute the index first, clamp it, then read act_stub once.
-        ! The old code did: stub = act_stub(...)  /  stub = act_stub(stub)
-        ! which dereferenced act_stub twice (double indirection).
-        !-----------------------------------------------------------------
         idx = 1_int64 + int(urand() * real(eact, real64), int64)
         if (idx < 1_int64) idx = 1_int64
         if (idx > eact)    idx = eact
@@ -442,9 +431,6 @@ contains
         call infect_event(stub, rowptr, colind, rev, src, infected, touched, ntouched, &
                           inf_nodes, where_inf, ni, act_stub, act_pos, eact)
       else
-        !-----------------------------------------------------------------
-        ! FIX #2: clamp the recovery node index before accessing inf_nodes.
-        !-----------------------------------------------------------------
         ridx = 1_int64 + int(urand() * real(ni, real64), int64)
         if (ridx < 1_int64) ridx = 1_int64
         if (ridx > ni)      ridx = ni
@@ -454,8 +440,8 @@ contains
       endif
     enddo
 
+    ! FIX-2: always return actual elapsed time; caller skips endemic runs.
     tau = t
-    if (pend == 1) tau = 0.0_real64
 
     deallocate(infected, touched, inf_nodes, where_inf, act_stub, act_pos)
   end subroutine run_lifespan
@@ -476,6 +462,9 @@ program sis_lifespan_cm
   real(real64) :: gamma, lmin, lmax, dl, lambda, tau, tau_sum, pend_frac
   integer :: nlambda, pend, pend_sum, ios
   character(len=256) :: arg, outfile
+
+  ! FIX-1: dedicated seed-index variable, clamped to [1, nk4]
+  integer(int64) :: seed_idx
 
   integer, parameter :: kmin = 4
   real(real64), parameter :: cth = 0.5_real64
@@ -540,10 +529,16 @@ program sis_lifespan_cm
     pend_sum = 0
 
     do r = 1, nruns
+      ! FIX-1: clamp seed index to [1, nk4]
+      seed_idx = 1_int64 + int(urand() * real(nk4, real64), int64)
+      if (seed_idx < 1_int64) seed_idx = 1_int64
+      if (seed_idx > nk4)     seed_idx = nk4
+
       call run_lifespan(lambda, cov_thr_nodes, &
-                        deg4_nodes(1 + int(urand() * real(nk4, real64))), &
+                        deg4_nodes(seed_idx), &
                         rowptr, colind, rev, src, tau, pend)
       pend_sum = pend_sum + pend
+      ! FIX-2: tau is always actual elapsed time; skip endemic runs here.
       if (pend == 0) tau_sum = tau_sum + tau
     enddo
 

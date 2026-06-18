@@ -51,33 +51,40 @@ run_case () {
 
 # -------------------------
 # gamma = 3.5
-# The tau peak sits consistently around lambda ~ 0.095-0.110 across all sizes
-# (observed from current data: peaks at 0.125, 0.112, 0.106, 0.112, 0.100, 0.100).
-# FIX: widened range to [0.085, 0.120] (was [0.090, 0.110]) and increased nlam
-# from 41 -> 36 points at spacing ~0.001 for robust peak detection.
-# FIX: added N=100000 window (was missing in original script).
-# FIX: added N=1000000 window (coarse scan for N=1M was never run before).
+# Peak range observed: ~0.075-0.101 across all sizes.
+# FIX: widened range to [0.060, 0.115] and kept nlam=56 (spacing ~0.001).
+# FIX: added N=10000, N=30000, N=50000 windows (missing in original script).
 # -------------------------
-run_case 100000  3.5 0.085 0.120 36 part2/results/raw/part2_N100000_g3.5_window.dat
-run_case 300000  3.5 0.085 0.120 36 part2/results/raw/part2_N300000_g3.5_window.dat
-run_case 500000  3.5 0.085 0.120 36 part2/results/raw/part2_N500000_g3.5_window.dat
-run_case 1000000 3.5 0.080 0.115 36 part2/results/raw/part2_N1000000_g3.5_window.dat
+run_case  10000  3.5 0.060 0.115 56 part2/results/raw/part2_N10000_g3.5_window.dat
+run_case  30000  3.5 0.060 0.115 56 part2/results/raw/part2_N30000_g3.5_window.dat
+run_case  50000  3.5 0.060 0.115 56 part2/results/raw/part2_N50000_g3.5_window.dat
+run_case 100000  3.5 0.060 0.115 56 part2/results/raw/part2_N100000_g3.5_window.dat
+run_case 300000  3.5 0.060 0.115 56 part2/results/raw/part2_N300000_g3.5_window.dat
+run_case 500000  3.5 0.060 0.115 56 part2/results/raw/part2_N500000_g3.5_window.dat
+run_case 1000000 3.5 0.060 0.115 56 part2/results/raw/part2_N1000000_g3.5_window.dat
+
 
 # -------------------------
 # gamma = 2.5
-# The tau peak drifts toward lambda=0 as N grows:
-#   N=10k:  peak ~ 0.027
-#   N=30k:  peak ~ 0.014
-#   N=50k:  peak ~ 0.011
-#   N>=100k: expected below 0.010 (lambda_c -> 0 for gamma < 3)
+# Peak drifts toward lambda=0 as N grows (lambda_c -> 0 for gamma < 3).
 # FIX: corrected window ranges to follow the drifting peak downward.
-#      Old windows ([0.008, 0.030] for all large N) missed the peak for N>=300k.
-# Spacing ~ 0.0005 throughout for adequate resolution.
+#   N=10k  peak ~ 0.021  -> window [0.005, 0.035]
+#   N=30k  peak ~ 0.013  -> window [0.004, 0.025]
+#   N=50k  peak ~ 0.011  -> window [0.003, 0.020]
+#   N=100k peak ~ 0.008  -> window [0.002, 0.016]
+#   N=300k peak < 0.007  -> window [0.001, 0.010]
+#   N=500k peak < 0.006  -> window [0.001, 0.008]
+#   N=1M   peak < 0.005  -> window [0.001, 0.006]
+# FIX: added N=10000, N=30000, N=50000 windows (missing in original script).
 # -------------------------
-run_case 100000  2.5 0.004 0.025 43 part2/results/raw/part2_N100000_g2.5_window.dat
-run_case 300000  2.5 0.003 0.018 31 part2/results/raw/part2_N300000_g2.5_window.dat
-run_case 500000  2.5 0.002 0.014 25 part2/results/raw/part2_N500000_g2.5_window.dat
-run_case 1000000 2.5 0.001 0.010 19 part2/results/raw/part2_N1000000_g2.5_window.dat
+run_case  10000  2.5 0.005 0.035 61 part2/results/raw/part2_N10000_g2.5_window.dat
+run_case  30000  2.5 0.004 0.025 43 part2/results/raw/part2_N30000_g2.5_window.dat
+run_case  50000  2.5 0.003 0.020 35 part2/results/raw/part2_N50000_g2.5_window.dat
+run_case 100000  2.5 0.002 0.016 29 part2/results/raw/part2_N100000_g2.5_window.dat
+run_case 300000  2.5 0.001 0.010 19 part2/results/raw/part2_N300000_g2.5_window.dat
+run_case 500000  2.5 0.001 0.008 15 part2/results/raw/part2_N500000_g2.5_window.dat
+run_case 1000000 2.5 0.001 0.006 11 part2/results/raw/part2_N1000000_g2.5_window.dat
+
 
 echo
 echo "Finished refined window scan at $(date)"

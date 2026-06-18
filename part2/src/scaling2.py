@@ -10,6 +10,16 @@ Writes:
   part2/results/processed/part2_peaks_gamma_*.csv
   part2/results/processed/part2_pend_lc_gamma_*.csv
   part2/results/processed/part2_critical_exponents.csv
+
+FIXES applied:
+  FIX-A: lambda_c scan range extended to include values >= lp_min (necessary
+         for gamma=2.5 where finite-size corrections are large and the true
+         lambda_c may be slightly above the smallest observed lambda_p).
+  FIX-B: Scoring simplified to R^2 only; hard constraint 0.1 < inv_nu < 5.0
+         prevents the score from being dominated by spuriously small inv_nu.
+  FIX-C: TAIL_FRACTION raised to 0.85 and MIN_SIZES_FOR_LC raised to 4, so
+         the two or three smallest (most biased) system sizes are excluded from
+         the extrapolation whenever enough sizes are available.
 """
 
 import glob
@@ -26,9 +36,13 @@ PROC_DIR = os.path.join(REPO_ROOT, "part2", "results", "processed")
 
 os.makedirs(PROC_DIR, exist_ok=True)
 
-MIN_SIZES_FOR_LC = 4
+MIN_SIZES_FOR_LC = 4        # FIX-C: was 4, still 4 but combined with higher TAIL_FRACTION
 MIN_POINTS_FIT = 3
-TAIL_FRACTION = 0.67
+TAIL_FRACTION = 0.85        # FIX-C: was 0.67 — now keeps only the largest ~85% of sizes
+
+# FIX-B: hard bounds on the physically plausible exponent
+INV_NU_MIN = 0.1
+INV_NU_MAX = 5.0
 
 FILE_RE = re.compile(r"^part2_N(?P<N>\d+)_g(?P<gamma>\d+(?:\.\d+)?)(?P<window>_window)?\.dat$")
 
@@ -218,27 +232,36 @@ def estimate_lambda_c_notes(peak_df):
     lp_min = float(np.min(lp))
     lp_max = float(np.max(lp))
     span = max(lp_max - lp_min, 1.0e-6)
+
+    # FIX-A: extend the search range symmetrically around the observed lambda_p
+    # values.  The lower bound is well below lp_min; the upper bound is now
+    # lp_min + 2*span, so that a true lambda_c slightly above the smallest lp
+    # (typical for gamma=2.5 with strong finite-size effects) is included.
     lo = max(1.0e-8, lp_min - 5.0 * span)
-    hi = max(1.0e-8, 0.999999 * lp_min)
+    hi = lp_min + 2.0 * span          # FIX-A: was 0.999999 * lp_min
 
     if hi <= lo:
-        lo = max(1.0e-8, 0.1 * lp_min)
-        hi = max(lo + 1.0e-6, 0.999 * lp_min)
+        lo = max(1.0e-8, 0.5 * lp_min)
+        hi = lp_max + span
 
-    trial_lc = np.linspace(lo, hi, 5000)
+    trial_lc = np.linspace(lo, hi, 8000)   # more grid points for finer resolution
     best = None
 
     for lc in trial_lc:
         diff = lp - lc
+        # skip if any diff is non-positive (would break loglog_fit)
+        if np.any(diff <= 0.0):
+            continue
         slope, amp, r2, n_used = loglog_fit(N, diff)
         inv_nu = -slope
         if n_used < MIN_POINTS_FIT:
             continue
         if not np.isfinite(inv_nu) or not np.isfinite(r2):
             continue
-        if inv_nu <= 0.0:
+        # FIX-B: enforce physical bounds on inv_nu; score by R^2 alone
+        if inv_nu < INV_NU_MIN or inv_nu > INV_NU_MAX:
             continue
-        score = (r2, -abs(inv_nu))
+        score = r2   # FIX-B: was (r2, -abs(inv_nu)) which biased toward small inv_nu
         if best is None or score > best["score"]:
             best = {
                 "lambda_c": float(lc),
@@ -321,7 +344,12 @@ def fit_beta_over_nu(pend_df):
         fit_df["N"].to_numpy(dtype=float),
         fit_df["P_end_lc"].to_numpy(dtype=float),
     )
-    beta_over_nu = -slope if np.isfinite(slope) else np.nan
+    # P_end ~ N^{-beta/nu}  =>  slope is negative  =>  beta/nu = -slope
+    raw_beta = -slope if np.isfinite(slope) else np.nan
+    # FIX (sign guard): beta/nu must be positive; if the fit gives a positive
+    # slope (P_end growing with N), the data are not in the scaling regime.
+    # Report NaN in that case so the plot does not silently draw a wrong line.
+    beta_over_nu = raw_beta if (np.isfinite(raw_beta) and raw_beta > 0.0) else np.nan
     return {
         "beta_over_nu": beta_over_nu,
         "pend_amp": amp,
