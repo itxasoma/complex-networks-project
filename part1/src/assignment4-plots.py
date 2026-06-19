@@ -25,7 +25,7 @@ from network_utils import analyze_graph, load_gcc_from_csv
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, ".."))
 RESULTS = os.path.join(REPO_ROOT, "results")
-EDGE_FILE = os.path.join(REPO_ROOT, "lastfm_asia", "lastfm_asia_edges.csv")
+EDGE_FILE = os.path.join(REPO_ROOT, "../lastfm_asia", "lastfm_asia_edges.csv")
 
 plt.style.use(os.path.join(SCRIPT_DIR, "mplstyle", "science.mplstyle"))
 

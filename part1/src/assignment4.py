@@ -1,34 +1,33 @@
 """
-assignment4.py: Configuration Model (CM) random network generation and analysis.
+assignment4-plots.py: Plots for Assignment 4 (CM analysis).
 
-Uses the degree sequence from the original GCC to:
-1. Generate one CM realization.
-2. Generate an ensemble of CM realizations.
-3. Compare scalar topological properties with the original network.
+Reads:
+  results/a4_comparison.csv
+  results/a4_ensemble.csv
+
+Writes:
+  results/a4_pk_comparison.pdf
+  results/a4_ccdf_comparison.pdf
+  results/a4_knn_comparison.pdf
+  results/a4_ck_comparison.pdf
+  results/a4_ensemble_distributions.pdf
 """
 
-
+import csv
 import os
-import time
 
+import matplotlib.pyplot as plt
 import numpy as np
 
-from network_utils import analyze_graph, load_gcc_from_csv, save_csv
-
-
-try:
-    import community as community_louvain
-except ImportError:
-    raise ImportError("Install with: pip install python-louvain")
+from network_utils import analyze_graph, load_gcc_from_csv
 
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, ".."))
 RESULTS = os.path.join(REPO_ROOT, "results")
 EDGE_FILE = os.path.join(REPO_ROOT, "lastfm_asia", "lastfm_asia_edges.csv")
-os.makedirs(RESULTS, exist_ok=True)
 
-N_REALIZATIONS = 100
+plt.style.use(os.path.join(SCRIPT_DIR, "mplstyle", "science.mplstyle"))
 
 
 def configuration_model(degree_seq, rng):
@@ -54,76 +53,224 @@ def configuration_model(degree_seq, rng):
     return G
 
 
-def analyze_with_communities(G):
-    res = analyze_graph(G)
-    partition = community_louvain.best_partition(G, resolution=1.0, random_state=42)
-    modularity = community_louvain.modularity(partition, G)
-    n_comm = len(set(partition.values()))
-    res["modularity"] = modularity
-    res["n_comm"] = n_comm
-    return res
+comparison = {}
+with open(os.path.join(RESULTS, "a4_comparison.csv")) as f:
+    for row in csv.DictReader(f):
+        comparison[row["metric"]] = {
+            "original": float(row["original"]),
+            "cm_single": float(row["cm_single"]),
+            "cm_mean": float(row["cm_mean"]),
+            "cm_std": float(row["cm_std"]),
+        }
+
+ensemble = {}
+with open(os.path.join(RESULTS, "a4_ensemble.csv")) as f:
+    for row in csv.DictReader(f):
+        for k, v in row.items():
+            ensemble.setdefault(k, []).append(float(v))
+
+ens_mean = {k: float(np.mean(v)) for k, v in ensemble.items()}
+N_REALIZATIONS = len(ensemble["E"])
+
+print(f"Loaded {N_REALIZATIONS} ensemble realizations.")
 
 
 G_orig = load_gcc_from_csv(EDGE_FILE)
-orig = analyze_with_communities(G_orig)
-D_orig = orig["D"].copy()
-
-print(f"Original GCC  N={orig['N']}  E={orig['E']}")
-print(f"<k>={orig['k_avg']:.4f}  <c>={orig['c_avg']:.6f}  r={orig['r']:.4f}  Q={orig['modularity']:.4f}")
-
+orig = analyze_graph(G_orig)
 
 rng = np.random.default_rng(42)
-
-print("\nGenerating single CM realization...")
-G_cm1 = configuration_model(D_orig, rng)
-cm1 = analyze_with_communities(G_cm1)
-print(f"CM single  N={cm1['N']}  E={cm1['E']}  discarded edges = {orig['E'] - cm1['E']}")
-print(f"<k>={cm1['k_avg']:.4f}  <c>={cm1['c_avg']:.6f}  r={cm1['r']:.4f}  Q={cm1['modularity']:.4f}")
+G_cm1 = configuration_model(orig["D"], rng)
+cm1 = analyze_graph(G_cm1)
 
 
-scalar_keys = ["E", "k_avg", "k2_avg", "c_avg", "r", "modularity", "n_comm", "knn_uncorr"]
-ensemble = {k: [] for k in scalar_keys}
+def nz(res, start=1):
+    return np.array([k for k in range(start, res["k_max"] + 1) if res["nk"][k] > 0])
 
-print(f"\nGenerating {N_REALIZATIONS} CM realizations...")
-t0 = time.time()
+
+def nz_knn(res):
+    return np.array([k for k in range(1, res["k_max"] + 1) if res["nk"][k] > 0 and res["knn"][k] > 0])
+
+
+def nz_ck(res):
+    return np.array([k for k in range(2, res["k_max"] + 1) if res["nk"][k] > 0 and res["ck"][k] > 0])
+
+
+ks_o = nz(orig)
+ks_c = nz(cm1)
+
+
+# ---------------------------------------------------------------------------
+# Build ensemble P(k) and Pc(k) distributions for shaded-band overlay.
+# Uses the same seed=42 as assignment4.py so realizations are reproducible.
+# ---------------------------------------------------------------------------
+print(f"Building P(k)/Pc(k) over {N_REALIZATIONS} CM realizations for ensemble overlay...")
+k_max_global = int(orig["k_max"])
+Pk_ens = np.zeros((N_REALIZATIONS, k_max_global + 1))
+Pc_ens = np.zeros((N_REALIZATIONS, k_max_global + 1))
+
+rng_ens = np.random.default_rng(42)
 for i in range(N_REALIZATIONS):
-    G_cm = configuration_model(D_orig, rng)
-    res = analyze_with_communities(G_cm)
-    for k in scalar_keys:
-        ensemble[k].append(res[k])
-    if (i + 1) % 10 == 0:
-        print(f"{i + 1}/{N_REALIZATIONS}  ({time.time() - t0:.0f}s elapsed)")
+    G_cm = configuration_model(orig["D"], rng_ens)
+    res_cm = analyze_graph(G_cm)
+    km = int(res_cm["k_max"])
+    Pk_ens[i, :km + 1] = res_cm["Pk"][:km + 1]
+    Pc_ens[i, :km + 1] = res_cm["Pc"][:km + 1]
+    if (i + 1) % 25 == 0:
+        print(f"  {i + 1}/{N_REALIZATIONS}")
 
-ens_mean = {k: float(np.mean(v)) for k, v in ensemble.items()}
-ens_std = {k: float(np.std(v)) for k, v in ensemble.items()}
+Pk_ens_mean = np.mean(Pk_ens, axis=0)
+Pk_ens_std  = np.std(Pk_ens,  axis=0)
+Pc_ens_mean = np.mean(Pc_ens, axis=0)
+Pc_ens_std  = np.std(Pc_ens,  axis=0)
 
-print("\nEnsemble averages:")
-for k in scalar_keys:
-    print(f"{k:<12} {ens_mean[k]:.4f} ± {ens_std[k]:.4f}")
+ks_ens_pk = np.array([k for k in range(1, k_max_global + 1) if Pk_ens_mean[k] > 0])
+ks_ens_pc = np.array([k for k in range(1, k_max_global + 1) if Pc_ens_mean[k] > 0])
 
 
-rows = [
-    ["E", orig["E"], cm1["E"], ens_mean["E"], ens_std["E"]],
-    ["<k>", orig["k_avg"], cm1["k_avg"], ens_mean["k_avg"], ens_std["k_avg"]],
-    ["<k2>", orig["k2_avg"], cm1["k2_avg"], ens_mean["k2_avg"], ens_std["k2_avg"]],
-    ["<c>", orig["c_avg"], cm1["c_avg"], ens_mean["c_avg"], ens_std["c_avg"]],
-    ["r", orig["r"], cm1["r"], ens_mean["r"], ens_std["r"]],
-    ["Q", orig["modularity"], cm1["modularity"], ens_mean["modularity"], ens_std["modularity"]],
-    ["n_comm", orig["n_comm"], cm1["n_comm"], ens_mean["n_comm"], ens_std["n_comm"]],
-    ["<k2>/<k>", orig["knn_uncorr"], cm1["knn_uncorr"], ens_mean["knn_uncorr"], ens_std["knn_uncorr"]],
+# P(k) with ensemble overlay
+fig, ax = plt.subplots(figsize=(5, 4))
+ax.fill_between(
+    ks_ens_pk,
+    np.maximum(Pk_ens_mean[ks_ens_pk] - Pk_ens_std[ks_ens_pk], 1e-12),
+    Pk_ens_mean[ks_ens_pk] + Pk_ens_std[ks_ens_pk],
+    color="darkorange", alpha=0.25, label=r"CM ens. $\pm 1\sigma$",
+)
+ax.loglog(ks_ens_pk, Pk_ens_mean[ks_ens_pk], "-", color="darkorange",
+          lw=1.5, label=f"CM mean ({N_REALIZATIONS} real.)")
+ax.loglog(ks_c, cm1["Pk"][ks_c], "s", ms=3.0, color="darkorange",
+          alpha=0.6, label="CM (single)")
+ax.loglog(ks_o, orig["Pk"][ks_o], "o", ms=3.5, color="steelblue", label="Original")
+ax.set_xlabel(r"$k$")
+ax.set_ylabel(r"$P(k)$")
+ax.set_title(r"Degree distribution $P(k)$")
+ax.legend(fontsize=7)
+plt.tight_layout()
+plt.savefig(os.path.join(RESULTS, "a4_pk_comparison.pdf"))
+plt.close()
+
+
+# CCDF with ensemble overlay
+fig, ax = plt.subplots(figsize=(5, 4))
+ax.fill_between(
+    ks_ens_pc,
+    np.maximum(Pc_ens_mean[ks_ens_pc] - Pc_ens_std[ks_ens_pc], 1e-12),
+    Pc_ens_mean[ks_ens_pc] + Pc_ens_std[ks_ens_pc],
+    color="darkorange", alpha=0.25, label=r"CM ens. $\pm 1\sigma$",
+)
+ax.loglog(ks_ens_pc, Pc_ens_mean[ks_ens_pc], "-", color="darkorange",
+          lw=1.5, label=f"CM mean ({N_REALIZATIONS} real.)")
+ax.loglog(ks_c, cm1["Pc"][ks_c], "--", color="darkorange",
+          lw=1.0, alpha=0.6, label="CM (single)")
+ax.loglog(ks_o, orig["Pc"][ks_o], color="steelblue", label="Original")
+ax.set_xlabel(r"$k$")
+ax.set_ylabel(r"$P_c(k)$")
+ax.set_title("CCDF")
+ax.legend(fontsize=7)
+plt.tight_layout()
+plt.savefig(os.path.join(RESULTS, "a4_ccdf_comparison.pdf"))
+plt.close()
+
+
+# k_nn(k)
+ks_knn_o = nz_knn(orig)
+ks_knn_c = nz_knn(cm1)
+
+fig, ax = plt.subplots(figsize=(5, 4))
+ax.loglog(ks_knn_o, orig["knn"][ks_knn_o], "o", ms=3.5, label="Original")
+ax.loglog(ks_knn_c, cm1["knn"][ks_knn_c], "s", ms=3.5, label="CM (single)")
+ax.axhline(
+    orig["knn_uncorr"],
+    color="black",
+    lw=1.2,
+    ls="--",
+    label=rf"$\langle k^2 \rangle / \langle k \rangle = {orig['knn_uncorr']:.2f}$",
+)
+ax.set_xlabel(r"$k$")
+ax.set_ylabel(r"$k_{\mathrm{nn}}(k)$")
+ax.set_title("Average nearest-neighbour degree")
+ax.legend(fontsize=7)
+plt.tight_layout()
+plt.savefig(os.path.join(RESULTS, "a4_knn_comparison.pdf"))
+plt.close()
+
+
+# c(k)
+ks_ck_o = nz_ck(orig)
+ks_ck_c = nz_ck(cm1)
+
+fig, ax = plt.subplots(figsize=(5, 4))
+ax.loglog(ks_ck_o, orig["ck"][ks_ck_o], "o", ms=3.5, label="Original")
+ax.loglog(ks_ck_c, cm1["ck"][ks_ck_c], "s", ms=3.5, label="CM (single)")
+ax.axhline(
+    orig["c_avg"],
+    color="steelblue",
+    lw=1.2,
+    ls="--",
+    label=rf"Original $\langle c \rangle = {orig['c_avg']:.4f}$",
+)
+ax.axhline(
+    ens_mean["c_avg"],
+    color="darkorange",
+    lw=1.2,
+    ls="--",
+    label=rf"CM ensemble $\langle c \rangle = {ens_mean['c_avg']:.4f}$",
+)
+ax.set_xlabel(r"$k$")
+ax.set_ylabel(r"$c(k)$")
+ax.set_title("Clustering spectrum")
+ax.legend(fontsize=7)
+plt.tight_layout()
+plt.savefig(os.path.join(RESULTS, "a4_ck_comparison.pdf"))
+plt.close()
+
+
+# Ensemble histograms
+plot_metrics = [
+    ("c_avg", r"$\langle c \rangle$", comparison["<c>"]["original"]),
+    ("r", r"Assortativity $r$", comparison["r"]["original"]),
+    ("modularity", r"Modularity $Q$", comparison["Q"]["original"]),
+    ("n_comm", r"$n_{\mathrm{comm}}$", comparison["n_comm"]["original"]),
+    ("knn_uncorr", r"$\langle k^2 \rangle / \langle k \rangle$", comparison["<k2>/<k>"]["original"]),
+    ("E", r"Edges $E$", comparison["E"]["original"]),
 ]
 
-save_csv(
-    os.path.join(RESULTS, "a4_comparison.csv"),
-    ["metric", "original", "cm_single", "cm_mean", "cm_std"],
-    [[r[0], round(float(r[1]), 4), round(float(r[2]), 4), round(float(r[3]), 4), round(float(r[4]), 4)] for r in rows],
-)
+fig, axes = plt.subplots(2, 3, figsize=(11, 6))
+axes = axes.flatten()
 
-save_csv(
-    os.path.join(RESULTS, "a4_ensemble.csv"),
-    scalar_keys,
-    [[round(float(ensemble[k][i]), 4) for k in scalar_keys] for i in range(N_REALIZATIONS)],
-)
+for ax, (key, label, orig_val) in zip(axes, plot_metrics):
+    data = ensemble[key]
+    data_min = min(data)
+    data_max = max(data)
 
-print("\nDone. Results saved to", RESULTS)
-print("Run assignment4-plots.py to generate figures.")
+    ax.hist(data, bins=15, color="steelblue", alpha=0.8, edgecolor="white")
+    ax.axvline(ens_mean[key], color="black", lw=1.2, ls=":", label=f"CM mean: {ens_mean[key]:.3f}")
+
+    margin = 0.20 * (data_max - data_min + 1e-9)
+    in_range = (data_min - margin) <= orig_val <= (data_max + margin)
+
+    if in_range:
+        ax.axvline(orig_val, color="tomato", lw=1.5, ls="--", label=f"Original: {orig_val:.3f}")
+        ax.legend(fontsize=6)
+    else:
+        ax.legend(fontsize=6)
+        ax.annotate(
+            f"Original:\n{orig_val:.3f}",
+            xy=(0.97, 0.95),
+            xycoords="axes fraction",
+            ha="right",
+            va="top",
+            fontsize=6,
+            color="tomato",
+            bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="tomato", alpha=0.8, lw=0.8),
+        )
+
+    ax.set_xlabel(label)
+    ax.set_ylabel("Count")
+    ax.set_title(f"{label}  (n={N_REALIZATIONS})")
+
+plt.suptitle(f"CM ensemble distributions ({N_REALIZATIONS} realizations)", fontsize=10, y=1.01)
+plt.tight_layout()
+plt.savefig(os.path.join(RESULTS, "a4_ensemble_distributions.pdf"), bbox_inches="tight")
+plt.close()
+
+print("\nAll plots saved to", RESULTS)

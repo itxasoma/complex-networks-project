@@ -1,16 +1,6 @@
 # ============================================================
 # scaling2.py  –  FSS analysis for Part 2 (SIS lifespan)
 # ============================================================
-"""
-Changes vs previous version
-----------------------------
-FIX-A  lambda_c scan extended so that lambda_c >= lp_min is reachable.
-FIX-B  Scoring is R^2 only; hard bounds 0.1 < inv_nu < 5.0.
-FIX-C  TAIL_FRACTION = 0.85, MIN_SIZES_FOR_LC = 4.
-FIX-D  gamma=2.5: N=1M excluded (tau curve is flat noise, no peak signal).
-       lambda_c forced to 0 analytically; 1/nu from raw power-law on lambda_p.
-FIX-E  gamma=3.5: TAIL_FRACTION excludes the two smallest (noisiest) sizes.
-"""
 
 import glob, os, re
 import numpy as np

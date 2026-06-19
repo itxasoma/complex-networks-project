@@ -30,7 +30,7 @@ except ImportError:
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, ".."))
 RESULTS = os.path.join(REPO_ROOT, "results")
-EDGE_FILE = os.path.join(REPO_ROOT, "lastfm_asia", "lastfm_asia_edges.csv")
+EDGE_FILE = os.path.join(REPO_ROOT, "../lastfm_asia", "lastfm_asia_edges.csv")
 os.makedirs(RESULTS, exist_ok=True)
 
 plt.style.use(os.path.join(SCRIPT_DIR, "mplstyle", "science.mplstyle"))
@@ -54,7 +54,7 @@ print(f"Smallest community = {sizes[-1]} nodes")
 print(f"Mean community size = {sizes.mean():.1f}")
 
 
-cmap = plt.get_cmap("plasma_r")
+cmap = plt.get_cmap("inferno_r")
 size_values = np.array(list(comm_sizes.values()))
 log_min = np.log(size_values).min()
 log_max = np.log(size_values).max()

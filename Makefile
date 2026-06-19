@@ -81,14 +81,6 @@ plots2:
 	mkdir -p $(RES2)/processed $(FIG2)
 	$(PYTHON) $(SRC2)/plots2.py
 
-binning:
-	@if [ -f $(SRC2)/binning.py ]; then \
-		mkdir -p $(RES2)/processed $(FIG2); \
-		$(PYTHON) $(SRC2)/binning.py; \
-	else \
-		echo "No $(SRC2)/binning.py found; skipping binning."; \
-	fi
-
 clean:
 	rm -f *.mod *.o
 	rm -f $(EXE2)
