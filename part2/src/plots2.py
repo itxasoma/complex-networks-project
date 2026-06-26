@@ -27,7 +27,7 @@ if os.path.exists(STYLE_FILE):
 
 FILE_RE    = re.compile(r"^part2_N(?P<N>\d+)_g(?P<gamma>\d+(?:\.\d+)?)(?P<window>_window)?\.dat$")
 P_END_EXCL = 0.95
-EXCLUDE_N  = {2.5: {1_000_000}}   # FIX-4
+EXCLUDE_N  = {}   
 
 _ALL_NS   = [10_000, 30_000, 50_000, 100_000, 300_000, 500_000, 1_000_000]
 _INFERNO  = matplotlib.colormaps["inferno"]   # FIX-8: replaces deprecated get_cmap()
@@ -103,10 +103,14 @@ def make_tau_plot(gamma, gamma_df, peak_df):
     all_lp = []
     for N, sdf in sorted(gamma_df.groupby("N"), key=lambda z: int(z[0])):
         sdf = sdf.sort_values("lambda").reset_index(drop=True)
+        excluded = (float(gamma) < 3.0 and int(N) == 1_000_000)
+        ls = "--" if excluded else "-"
+        lw = 1.0 if excluded else 1.5
         ax.plot(sdf["lambda"], sdf["tau"],
-                color=color(N), lw=1.5, label=nlabel(N))
+                color=color(N), lw=lw, ls=ls,
+                label=nlabel(N) + (" (excl.)" if excluded else ""))
         row = peak_df.loc[peak_df["N"] == N]
-        if len(row):
+        if len(row) and not excluded:
             lp = float(row["lambda_p"].iloc[0])
             tp = float(row["tau_peak"].iloc[0])
             ax.plot(lp, tp, "x", color=color(N), ms=6, mew=1.5)
