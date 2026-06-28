@@ -5,6 +5,8 @@
 Produces exactly 3 compound figures per gamma:
 (1) raw tau curves, (2) FSS scaling fits, (3) data collapse.
 
+Additionally, it produces 1 complementary diagnostic figure per gamma
+to explain when the Step-5 plot P_end(lambda_c, N) cannot be fitted.
 """
 
 import glob, os, re
@@ -25,13 +27,13 @@ os.makedirs(FIG_DIR, exist_ok=True)
 if os.path.exists(STYLE_FILE):
     plt.style.use(STYLE_FILE)
 
-FILE_RE    = re.compile(r"^part2_N(?P<N>\d+)_g(?P<gamma>\d+(?:\.\d+)?)(?P<window>_window)?\.dat$")
+# Accept both _window.dat and _window2.dat, etc.
+FILE_RE    = re.compile(r"^part2_N(?P<N>\d+)_g(?P<gamma>\d+(?:\.\d+)?)(?P<window>_window\d*)?\.dat$")
 P_END_EXCL = 0.95
-EXCLUDE_N  = {}   
+EXCLUDE_N  = {}
 
 _ALL_NS   = [10_000, 30_000, 50_000, 100_000, 300_000, 500_000, 1_000_000]
-_INFERNO  = matplotlib.colormaps["inferno"]   # FIX-8: replaces deprecated get_cmap()
-# sample between 0.10 and 0.85 to stay away from near-black and near-white ends
+_INFERNO  = matplotlib.colormaps["inferno"]
 _N_COLORS = {
     N: _INFERNO(0.10 + 0.75 * i / (len(_ALL_NS) - 1))
     for i, N in enumerate(_ALL_NS)
@@ -49,7 +51,8 @@ def read_raw_file(path):
     try:
         df = pd.read_csv(path, comment="#", sep=r"\s+", header=None,
                          names=["lambda","tau","P_end","N","gamma","nruns","M"])
-    except Exception: return None
+    except Exception:
+        return None
     if len(df) == 0: return None
     df["source"]          = name
     df["is_window"]       = bool(m.group("window"))
@@ -80,7 +83,7 @@ def load_raw_results():
     raw = raw.sort_values(["gamma","N","lambda","source_priority"]).reset_index(drop=True)
     merged = []
     for (gamma, N), sub in raw.groupby(["gamma","N"], sort=True):
-        if N in EXCLUDE_N.get(float(gamma), set()):  # FIX-4
+        if N in EXCLUDE_N.get(float(gamma), set()):
             continue
         merged.append(merge_case_scans(sub))
     data = pd.concat(merged, ignore_index=True)
@@ -94,10 +97,10 @@ def safe_loglog(ax, x, y, *a, **kw):
         return True
     return False
 
-# ── Figure 1: tau(lambda) curves ─────────────────────────────────────────────
+# ── Figure 1: tau(lambda) curves ─────────────────────────────
 
 def make_tau_plot(gamma, gamma_df, peak_df):
-    """FIX-4/5: N=1M excluded for gamma<3; x-axis zoomed; peaks marked."""
+    """Original figure kept: raw tau curves + detected peaks."""
     fig, ax = plt.subplots(figsize=(5.5, 4.2))
 
     all_lp = []
@@ -132,13 +135,12 @@ def make_tau_plot(gamma, gamma_df, peak_df):
                     dpi=300 if ext == "png" else None)
     plt.close()
 
-# ── Figure 2: FSS scaling (lambda_p and tau_peak) ─────────────────────────────
+# ── Figure 2: FSS scaling (lambda_p and tau_peak) ───────────
 
 def make_fss_plot(gamma, peak_df, summary_row):
     """
-    Two-panel figure: left = lambda_p(N), right = tau_peak(N).
-    FIX-2: for gamma<3 the left panel shows a raw log-log fit (lambda_c=0,
-           no subtraction); the right panel annotates that slope~0 is expected.
+    Original two-panel figure kept:
+    left = lambda_p(N), right = tau_peak(N).
     """
     fig, axes = plt.subplots(1, 2, figsize=(10.5, 4.2))
 
@@ -153,7 +155,7 @@ def make_fss_plot(gamma, peak_df, summary_row):
     ta  = float(summary_row["tau_peak_amp"])    if pd.notna(summary_row["tau_peak_amp"])    else np.nan
     tr2 = float(summary_row["tau_peak_fit_r2"]) if pd.notna(summary_row["tau_peak_fit_r2"]) else np.nan
 
-    # ── left panel: lambda_p(N) ──────────────────────────────────────────────
+    # ── left panel: lambda_p(N) ──────────────────────────────
     ax = axes[0]
     for i in range(len(N)):
         ax.scatter(N[i], lp[i], color=color(int(N[i])), s=25, zorder=3)
@@ -165,7 +167,7 @@ def make_fss_plot(gamma, peak_df, summary_row):
             ax.loglog(xfit, yfit, "--", color="tab:red", lw=1.5,
                       label=rf"$\lambda_p \sim N^{{-1/\nu}}$, $1/\nu={inv:.3f}$"
                             rf", $R^2={r2:.3f}$")
-            ax.axhline(0, color="black", lw=0.8, ls=":", label=r"$\lambda_c = 0$")
+            # keep original spirit; do not force lambda_c line on log axis
         else:
             diff = lp - lc
             if np.all(diff > 0):
@@ -193,7 +195,7 @@ def make_fss_plot(gamma, peak_df, summary_row):
     ax.set_title(rf"$\gamma={gamma:.1f}$ peak position")
     ax.legend(fontsize=7)
 
-    # ── right panel: tau_peak(N) ─────────────────────────────────────────────
+    # ── right panel: tau_peak(N) ─────────────────────────────
     ax = axes[1]
     for i in range(len(N)):
         ax.scatter(N[i], tp[i], color=color(int(N[i])), s=25, zorder=3,
@@ -223,13 +225,13 @@ def make_fss_plot(gamma, peak_df, summary_row):
                     dpi=300 if ext == "png" else None)
     plt.close()
 
-# ── Figure 3: data collapse ───────────────────────────────────────────────────
+# ── Figure 3: data collapse ──────────────────────────────────
 
 def make_collapse_plot(gamma, gamma_df, summary_row):
     """
-    FIX-7: for gamma<3 uses lambda_c=0 and plain tau on y-axis (gamma1/nu~0).
-    FIX-1: rows with P_end > P_END_EXCL are dropped.
-    Two sub-panels: left = tau collapse, right = P_end collapse (if available).
+    Original collapse figure kept.
+    For gamma<3 uses lambda_c=0 and plain tau on y-axis if gamma1/nu ~ 0.
+    Rows with P_end > P_END_EXCL are dropped.
     """
     lc  = float(summary_row["lambda_c"])       if pd.notna(summary_row["lambda_c"])       else np.nan
     inv = float(summary_row["inv_nu"])         if pd.notna(summary_row["inv_nu"])         else np.nan
@@ -244,7 +246,7 @@ def make_collapse_plot(gamma, gamma_df, summary_row):
     fig, axes = plt.subplots(1, ncols, figsize=(5.5 * ncols, 4.2), squeeze=False)
 
     for N, sdf in sorted(gamma_df.groupby("N"), key=lambda z: int(z[0])):
-        sdf = sdf.loc[sdf["P_end"] <= P_END_EXCL].copy()  # FIX-1
+        sdf = sdf.loc[sdf["P_end"] <= P_END_EXCL].copy()
         if len(sdf) < 2:
             continue
         lam = sdf["lambda"].to_numpy(float)
@@ -294,7 +296,49 @@ def make_collapse_plot(gamma, gamma_df, summary_row):
                     dpi=300 if ext == "png" else None)
     plt.close()
 
-# ── main ──────────────────────────────────────────────────────────────────────
+# ── Complementary Figure 4: step-5 diagnostic ───────────────
+
+def make_step5_diagnostic_plot(gamma, diag_df, summary_row):
+    """
+    Complementary figure.
+    Keeps original 3 figures untouched and adds a diagnostic for:
+    why P_end(lambda_c, N) cannot be fitted when beta/nu is missing.
+    """
+    fig, ax = plt.subplots(figsize=(6.0, 4.4))
+
+    lc = float(summary_row["lambda_c"]) if pd.notna(summary_row["lambda_c"]) else np.nan
+
+    N = diag_df["N"].to_numpy(float)
+    lp_tau = diag_df["lambda_p_tau"].to_numpy(float)
+    l_first = diag_df["lambda_first_pend_pos"].to_numpy(float)
+    l_005   = diag_df["lambda_pend_0p005"].to_numpy(float)
+    l_01    = diag_df["lambda_pend_0p01"].to_numpy(float)
+
+    ax.plot(N, lp_tau, "-o", color="black", lw=1.4, ms=4.5,
+            label=r"$\lambda_p^{(\tau)}(N)$")
+    if np.isfinite(l_first).any():
+        ax.plot(N, l_first, "-o", color="tab:blue", lw=1.4, ms=4.5,
+                label=r"first $\lambda$ with $P_{\rm end}>0$")
+    if np.isfinite(l_005).any():
+        ax.plot(N, l_005, "-o", color="tab:orange", lw=1.4, ms=4.5,
+                label=r"$P_{\rm end}=0.005$")
+    if np.isfinite(l_01).any():
+        ax.plot(N, l_01, "-o", color="tab:green", lw=1.4, ms=4.5,
+                label=r"$P_{\rm end}=0.01$")
+
+    ax.set_xscale("log")
+    ax.set_xlabel(r"$N$")
+    ax.set_ylabel(r"$\lambda$")
+    ax.set_title(rf"$\gamma={gamma:.1f}$  diagnostic")
+    ax.legend(fontsize=7, loc="best")
+
+    plt.tight_layout()
+    for ext in ("pdf", "png"):
+        plt.savefig(os.path.join(FIG_DIR, f"part2_step5diag_gamma_{gamma:.1f}.{ext}"),
+                    dpi=300 if ext == "png" else None)
+    plt.close()
+
+# ── main ─────────────────────────────────────────────────────
 
 def main():
     data    = load_raw_results()
@@ -309,6 +353,12 @@ def main():
         make_tau_plot(gamma, gamma_df, peak_df)
         make_fss_plot(gamma, peak_df, srow)
         make_collapse_plot(gamma, gamma_df, srow)
+
+        diag_path = os.path.join(PROC_DIR, f"part2_diagnostics_gamma_{gamma:.1f}.csv")
+        if os.path.exists(diag_path):
+            diag_df = pd.read_csv(diag_path)
+            if len(diag_df) > 0:
+                make_step5_diagnostic_plot(gamma, diag_df, srow)
 
     print("Figures written to", FIG_DIR)
 

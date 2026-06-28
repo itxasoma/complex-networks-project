@@ -1,0 +1,78 @@
+#!/bin/bash
+#SBATCH --job-name=part2_window
+#SBATCH --partition=std
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --time=24:00:00
+#SBATCH --output=part2/results/logs/part2_window_%j.out
+#SBATCH --error=part2/results/logs/part2_window_%j.err
+
+set -euo pipefail
+
+echo "Starting Part 2 refined window scan at $(date)"
+echo "Working directory: $(pwd)"
+
+mkdir -p part2/bin part2/results/raw part2/results/processed part2/results/logs part2/figures
+
+NRUNS=5000
+echo "NRUNS=${NRUNS}"
+
+BIN="part2/bin/sis_lifespan_cm"
+
+if [ ! -x "$BIN" ]; then
+    echo "Binary not found or not executable: $BIN"
+    exit 1
+fi
+
+run_case () {
+    local N="$1"
+    local GAMMA="$2"
+    local LMIN="$3"
+    local LMAX="$4"
+    local NLAM="$5"
+    local OUTFILE="$6"
+
+    if [ -f "$OUTFILE" ]; then
+        LINES=$(wc -l < "$OUTFILE")
+        if [ "$LINES" -ge $((NLAM + 1)) ]; then
+            echo "Skipping completed: gamma=${GAMMA} N=${N} (${LINES} lines)"
+            return
+        fi
+    fi
+
+    echo
+    echo "Running: gamma=${GAMMA} N=${N} range=[${LMIN},${LMAX}] nlam=${NLAM}"
+    echo "Output: ${OUTFILE}"
+    "$BIN" "$N" "$GAMMA" "$NRUNS" "$LMIN" "$LMAX" "$NLAM" "$OUTFILE"
+}
+
+# -------------------------
+# gamma = 3.5
+# True tau peak is near lambda ~ 0.090-0.100 across all sizes.
+# Window covers 0.060-0.130 with spacing ~0.001 (71 points).
+# This range brackets the tau peak AND captures the P_end onset (~0.094).
+# Old files had lmax=0.115 (56 pts) — new files extend to 0.130.
+# -------------------------
+run_case  10000  3.5 0.060 0.130 71 part2/results/raw/part2_N10000_g3.5_window2.dat
+run_case  30000  3.5 0.060 0.130 71 part2/results/raw/part2_N30000_g3.5_window2.dat
+run_case  50000  3.5 0.060 0.130 71 part2/results/raw/part2_N50000_g3.5_window2.dat
+run_case 100000  3.5 0.060 0.130 71 part2/results/raw/part2_N100000_g3.5_window2.dat
+run_case 300000  3.5 0.060 0.130 71 part2/results/raw/part2_N300000_g3.5_window2.dat
+run_case 500000  3.5 0.060 0.130 71 part2/results/raw/part2_N500000_g3.5_window2.dat
+run_case 1000000 3.5 0.060 0.130 71 part2/results/raw/part2_N1000000_g3.5_window2.dat
+
+# -------------------------
+# gamma = 2.5 — drifting window following peak toward lambda=0
+# Unchanged from previous version.
+# -------------------------
+run_case  10000  2.5 0.005 0.035 61 part2/results/raw/part2_N10000_g2.5_window.dat
+run_case  30000  2.5 0.004 0.025 43 part2/results/raw/part2_N30000_g2.5_window.dat
+run_case  50000  2.5 0.003 0.020 35 part2/results/raw/part2_N50000_g2.5_window.dat
+run_case 100000  2.5 0.002 0.016 29 part2/results/raw/part2_N100000_g2.5_window.dat
+run_case 300000  2.5 0.001 0.010 19 part2/results/raw/part2_N300000_g2.5_window.dat
+run_case 500000  2.5 0.001 0.008 15 part2/results/raw/part2_N500000_g2.5_window.dat
+run_case 1000000 2.5 0.001 0.006 11 part2/results/raw/part2_N1000000_g2.5_window.dat
+
+echo
+echo "Finished at $(date)"
