@@ -47,32 +47,45 @@ run_case () {
     "$BIN" "$N" "$GAMMA" "$NRUNS" "$LMIN" "$LMAX" "$NLAM" "$OUTFILE"
 }
 
-# -------------------------
-# gamma = 3.5
-# True tau peak is near lambda ~ 0.090-0.100 across all sizes.
-# Window covers 0.060-0.130 with spacing ~0.001 (71 points).
-# This range brackets the tau peak AND captures the P_end onset (~0.094).
-# Old files had lmax=0.115 (56 pts) — new files extend to 0.130.
-# -------------------------
-run_case  10000  3.5 0.060 0.130 71 part2/results/raw/part2_N10000_g3.5_window2.dat
-run_case  30000  3.5 0.060 0.130 71 part2/results/raw/part2_N30000_g3.5_window2.dat
-run_case  50000  3.5 0.060 0.130 71 part2/results/raw/part2_N50000_g3.5_window2.dat
-run_case 100000  3.5 0.060 0.130 71 part2/results/raw/part2_N100000_g3.5_window2.dat
-run_case 300000  3.5 0.060 0.130 71 part2/results/raw/part2_N300000_g3.5_window2.dat
-run_case 500000  3.5 0.060 0.130 71 part2/results/raw/part2_N500000_g3.5_window2.dat
-run_case 1000000 3.5 0.060 0.130 71 part2/results/raw/part2_N1000000_g3.5_window2.dat
+# -----------------------------------------------------------------------
+# gamma = 3.5  —  definitive window
+#
+# lambda_c (current estimate) = 0.0534
+# Peak positions range from ~0.070 (N=1M) to ~0.100 (N=30k)
+#
+# Requirements:
+#   - Left edge well below lambda_c so P_end(lambda_c,N) is interpolatable
+#   - Right edge above the largest peak (~0.100 for N=30k)
+#   - Step size 0.001 for fine resolution near lambda_c and the peaks
+#
+# Range: [0.020, 0.115] = 96 points at step 0.001
+#   Left margin below lambda_c: 0.0534 - 0.020 = 0.033  (plenty)
+#   Right margin above peak:    0.115 - 0.100  = 0.015  (enough)
+# -----------------------------------------------------------------------
+NLAM_35=96
 
-# -------------------------
-# gamma = 2.5 — drifting window following peak toward lambda=0
-# Unchanged from previous version.
-# -------------------------
-run_case  10000  2.5 0.005 0.035 61 part2/results/raw/part2_N10000_g2.5_window.dat
-run_case  30000  2.5 0.004 0.025 43 part2/results/raw/part2_N30000_g2.5_window.dat
-run_case  50000  2.5 0.003 0.020 35 part2/results/raw/part2_N50000_g2.5_window.dat
-run_case 100000  2.5 0.002 0.016 29 part2/results/raw/part2_N100000_g2.5_window.dat
-run_case 300000  2.5 0.001 0.010 19 part2/results/raw/part2_N300000_g2.5_window.dat
-run_case 500000  2.5 0.001 0.008 15 part2/results/raw/part2_N500000_g2.5_window.dat
-run_case 1000000 2.5 0.001 0.006 11 part2/results/raw/part2_N1000000_g2.5_window.dat
+run_case  10000  3.5 0.020 0.115 ${NLAM_35} part2/results/raw/part2_N10000_g3.5_window2.dat
+run_case  30000  3.5 0.020 0.115 ${NLAM_35} part2/results/raw/part2_N30000_g3.5_window2.dat
+run_case  50000  3.5 0.020 0.115 ${NLAM_35} part2/results/raw/part2_N50000_g3.5_window2.dat
+run_case 100000  3.5 0.020 0.115 ${NLAM_35} part2/results/raw/part2_N100000_g3.5_window2.dat
+run_case 300000  3.5 0.020 0.115 ${NLAM_35} part2/results/raw/part2_N300000_g3.5_window2.dat
+run_case 500000  3.5 0.020 0.115 ${NLAM_35} part2/results/raw/part2_N500000_g3.5_window2.dat
+run_case 1000000 3.5 0.020 0.115 ${NLAM_35} part2/results/raw/part2_N1000000_g3.5_window2.dat
+
+# -----------------------------------------------------------------------
+# gamma = 2.5  —  drifting window following peak toward lambda=0
+#
+# Peak positions: 0.019 (N=10k) → 0.005 (N=500k) [cite:52]
+# N=1M excluded from FSS fit (lambda_c=0, P_end trivially 0).
+# Each window covers ~3x the peak position on each side.
+# -----------------------------------------------------------------------
+run_case  10000  2.5 0.005 0.035 31 part2/results/raw/part2_N10000_g2.5_window.dat
+run_case  30000  2.5 0.004 0.025 22 part2/results/raw/part2_N30000_g2.5_window.dat
+run_case  50000  2.5 0.003 0.020 18 part2/results/raw/part2_N50000_g2.5_window.dat
+run_case 100000  2.5 0.002 0.016 15 part2/results/raw/part2_N100000_g2.5_window.dat
+run_case 300000  2.5 0.001 0.010 10 part2/results/raw/part2_N300000_g2.5_window.dat
+run_case 500000  2.5 0.001 0.008  8 part2/results/raw/part2_N500000_g2.5_window.dat
+run_case 1000000 2.5 0.001 0.006  6 part2/results/raw/part2_N1000000_g2.5_window.dat
 
 echo
 echo "Finished at $(date)"
